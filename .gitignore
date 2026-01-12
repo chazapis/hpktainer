@@ -1,0 +1,22 @@
+# Binaries
+hpktainer
+hpk-net-daemon
+*.test
+*.out
+
+# Artifacts
+*.sock
+/run/
+
+# Go
+go.work
+go.work.sum
+
+# Editors
+.vscode/
+.idea/
+*.swp
+.DS_Store
+
+# Logs
+*.log
