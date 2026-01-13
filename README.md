@@ -20,20 +20,14 @@
 
 ## Build Instructions
 
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/yourusername/hpktainer.git
-    cd hpktainer
-    ```
-
-2.  **Build the binaries**:
+1.  **Build the binaries**:
     ```bash
     GOOS=linux go build -o hpktainer ./cmd/hpktainer
     GOOS=linux go build -o hpk-net-daemon ./cmd/hpk-net-daemon
     ```
     *Ensure `hpk-net-daemon` is in the same directory as `hpktainer` or in your `$PATH`.*
 
-3.  **Build the Base Docker Image**:
+2.  **Build the Base Docker Image**:
     The container image requires the `hpk-net-daemon` and an entrypoint script.
     ```bash
     docker build -t hpktainer-base .
@@ -44,7 +38,7 @@
 Run an Apptainer container using `hpktainer`. Hpktainer intercepts the command, sets up the network, and then executes Apptainer.
 
 ```bash
-sudo ./hpktainer run docker-daemon:hpktainer-base [command] [args...]
+./hpktainer run docker://hpktainer-base [command] [args...]
 ```
 
 > **Note**: Root access (`sudo`) is required to configure network interfaces and iptables.
@@ -54,7 +48,7 @@ sudo ./hpktainer run docker-daemon:hpktainer-base [command] [args...]
 Start a shell inside a container with networking enabled:
 
 ```bash
-sudo ./hpktainer run docker-daemon:hpktainer-base /bin/sh
+./hpktainer run docker://hpktainer-base /bin/sh
 ```
 
 ### Verification Steps
