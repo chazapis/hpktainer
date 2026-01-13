@@ -1,8 +1,4 @@
 .git
 .gitignore
-README.md
-instructions.md
-bin/
-cmd/
-internal/
-*.go
+*.md
+LICENSE

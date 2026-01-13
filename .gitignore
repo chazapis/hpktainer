@@ -1,6 +1,6 @@
 # Binaries
-hpktainer
-hpk-net-daemon
+/hpktainer
+/hpk-net-daemon
 *.test
 *.out
 

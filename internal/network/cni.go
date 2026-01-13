@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,7 +48,15 @@ func AllocateIP(id string, subnet string, dataDir string) (string, error) {
 		Type:       "host-local",
 	}
 	conf.IPAM.Type = "host-local"
-	conf.IPAM.Subnet = subnet
+
+	// Sanitation: Ensure subnet is a valid CIDR with no host bits set (network address)
+	// host-local is strict about this.
+	_, ipNet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		return "", fmt.Errorf("invalid subnet cidr: %w", err)
+	}
+	conf.IPAM.Subnet = ipNet.String()
+
 	conf.IPAM.DataDir = dataDir
 
 	input, err := json.Marshal(conf)
@@ -111,7 +120,14 @@ func ReleaseIP(id string, subnet string, dataDir string) error {
 		Type:       "host-local",
 	}
 	conf.IPAM.Type = "host-local"
-	conf.IPAM.Subnet = subnet
+
+	// Sanitation: Ensure subnet is a valid CIDR with no host bits set
+	_, ipNet, err := net.ParseCIDR(subnet)
+	if err != nil {
+		return fmt.Errorf("invalid subnet cidr: %w", err)
+	}
+	conf.IPAM.Subnet = ipNet.String()
+
 	conf.IPAM.DataDir = dataDir
 
 	input, err := json.Marshal(conf)
