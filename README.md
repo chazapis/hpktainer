@@ -1,6 +1,16 @@
 # Hpktainer
 
-**Hpktainer** is a CLI wrapper for [Apptainer](https://apptainer.org/) that provides a custom networking solution integrated with [Flannel](https://github.com/flannel-io/flannel). It enables Apptainer containers to run with an IP address from a Flannel subnet, allowing for pod-like networking.
+**Hpktainer** is a CLI wrapper for [Apptainer](https://apptainer.org/) providing custom networking integrated with [Flannel](https://github.com/flannel-io/flannel). It is designed to run inside a **Bubble** (a rootless Apptainer instance) to provide overlay networking between containers across different hosts.
+
+## Architecture
+
+*   **Bubble**: A "master" container (`hpk-bubble`) running rootless on the host. It runs:
+    *   **Flannel**: For overlay networking (VXLAN).
+    *   **Apptainer**: To spawn nested containers (`hpktainer-base`).
+*   **Hpktainer**: The CLI tool running inside the Bubble. It:
+    *   Configures a bridge (`hpk-bridge`) and connects it to the Bubble's Flannel network.
+    *   Launches nested containers with IPs from the Flannel subnet.
+    *   Uses `hpk-net-daemon` to forward traffic over UNIX sockets.
 
 ## Features
 
@@ -20,35 +30,62 @@
 
 ## Build Instructions
 
-1.  **Build the binaries**:
-    ```bash
-    GOOS=linux go build -o hpktainer ./cmd/hpktainer
-    GOOS=linux go build -o hpk-net-daemon ./cmd/hpk-net-daemon
-    ```
-    *Ensure `hpk-net-daemon` is in the same directory as `hpktainer` or in your `$PATH`.*
-
-2.  **Build the Base Docker Image**:
-    The container image requires the `hpk-net-daemon` and an entrypoint script.
-    ```bash
-    docker build -t hpktainer-base .
-    ```
-
-## Usage
-
-Run an Apptainer container using `hpktainer`. Hpktainer intercepts the command, sets up the network, and then executes Apptainer.
+### 1. Build Binaries and Images
+Use the included `Makefile` to build binaries and multi-arch Docker images (amd64/arm64).
 
 ```bash
-./hpktainer run docker://hpktainer-base [command] [args...]
+make all      # Builds binaries and images
+# OR
+make binaries # Just binaries (output to bin/)
+make images   # Just images
+```
+*Note: `make images` requires `docker buildx` support.*
+
+### 2. Push Images
+The Makefile pushes to `docker.io/chazapis` by default. Override the registry:
+
+```bash
+REGISTRY=myregistry.io/user make images
 ```
 
-> **Note**: Root access (`sudo`) is required to configure network interfaces and iptables.
+## Running Hpktainer (Bubble Mode)
 
-### Example: Interactive Shell
-
-Start a shell inside a container with networking enabled:
+### 1. Start the Bubble
+Run the `hpk-bubble.sh` script on the host. You need to assign an ID (to determine the subnet) and typically run it in the background or a separate terminal.
 
 ```bash
-./hpktainer run docker://hpktainer-base /bin/sh
+# Usage: ./scripts/hpk-bubble.sh [ID]
+# ID defaults to 1. CIDR will be 10.0.(ID+1).0/24.
+
+./scripts/hpk-bubble.sh 1
+```
+
+This starts the `hpk-bubble` instance interactively (or follow its logs). It will:
+*   Start Flannel (auto-detecting host IP).
+*   Provide a shell inside the bubble.
+
+### 2. Connect to the Bubble
+Once the bubble is running, you can open a shell inside it:
+
+```bash
+apptainer shell instance://bubble1
+```
+*(Replace `bubble1` with `bubble<ID>` if you used a different ID)*
+
+### 3. Run Containers Inside the Bubble
+Inside the bubble shell, you can use `hpktainer` to run nested containers connected to the overlay network.
+
+```bash
+# Inside the bubble
+hpktainer run docker://docker.io/chazapis/hpktainer-base:latest /bin/sh
+```
+
+### 4. Verify Connectivity
+Inside the nested container:
+```bash
+ip addr show     # Should see Flannel subnet IP
+ping 8.8.8.8     # External access
+ping <Other_Bubble_IP> # Inter-bubble access
 ```
 
 ### Verification Steps
