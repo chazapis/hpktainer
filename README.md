@@ -1,32 +1,6 @@
-# Hpktainer
+# HPKtainer
 
-**Hpktainer** is a CLI wrapper for [Apptainer](https://apptainer.org/) providing custom networking integrated with [Flannel](https://github.com/flannel-io/flannel). It is designed to run inside a **Bubble** (a rootless Apptainer instance) to provide overlay networking between containers across different hosts.
-
-## Architecture
-
-*   **Bubble**: A "master" container (`hpk-bubble`) running rootless on the host. It runs:
-    *   **Flannel**: For overlay networking (VXLAN).
-    *   **Apptainer**: To spawn nested containers (`hpktainer-base`).
-*   **Hpktainer**: The CLI tool running inside the Bubble. It:
-    *   Configures a bridge (`hpk-bridge`) and connects it to the Bubble's Flannel network.
-    *   Launches nested containers with IPs from the Flannel subnet.
-    *   Uses `hpk-net-daemon` to forward traffic over UNIX sockets.
-
-## Features
-
-*   **Custom Networking**: Assigns unique IPs to containers from a Flannel-managed subnet.
-*   **Host Bridge integration**: Connects containers to a host bridge (`hpk-bridge`) for connectivity.
-*   **Traffic Forwarding**: Uses a client-server daemon (`hpk-net-daemon`) over UNIX sockets to tunnel traffic between the host tap interface and the container.
-*   **Easy CLI**: Wraps `apptainer` commands, injecting necessary network configurations automatically.
-
-## Prerequisites
-
-*   **Linux**: Required for network namespaces, bridge support, and iptables.
-*   **Go 1.23+**: For building the project.
-*   **Apptainer**: The core container runtime.
-*   **Flannel**: Must be running on the host. Hpktainer reads subnet config from `/run/flannel/subnet.env`.
-*   **CNI Plugins**: Specifically the `host-local` plugin is used for IP allocation.
-*   **Docker**: To build the base container image.
+**HPKtainer** is a CLI wrapper for [Apptainer](https://apptainer.org/) providing custom networking integrated with [Flannel](https://github.com/flannel-io/flannel). It is designed to run inside a **bubble** (a rootless Apptainer instance) to provide overlay networking between nested containers across different hosts.
 
 ## Build Instructions
 
@@ -48,10 +22,10 @@ The Makefile pushes to `docker.io/chazapis` by default. Override the registry:
 REGISTRY=myregistry.io/user make images
 ```
 
-## Running Hpktainer (Bubble Mode)
+## Running HPKtainer
 
 ### 1. Start the Bubble
-Run the `hpk-bubble.sh` script on the host. You need to assign an ID (to determine the subnet) and typically run it in the background or a separate terminal.
+Run the `hpk-bubble.sh` script on the host. You need to assign an ID (to determine the slirp4netns subnet) and typically run it in the background or a separate terminal.
 
 ```bash
 # Usage: ./scripts/hpk-bubble.sh [ID]
@@ -59,10 +33,6 @@ Run the `hpk-bubble.sh` script on the host. You need to assign an ID (to determi
 
 ./scripts/hpk-bubble.sh 1
 ```
-
-This starts the `hpk-bubble` instance interactively (or follow its logs). It will:
-*   Start Flannel (auto-detecting host IP).
-*   Provide a shell inside the bubble.
 
 ### 2. Connect to the Bubble
 Once the bubble is running, you can open a shell inside it:
@@ -83,45 +53,15 @@ hpktainer run docker://docker.io/chazapis/hpktainer-base:latest /bin/sh
 ### 4. Verify Connectivity
 Inside the nested container:
 ```bash
-ip addr show     # Should see Flannel subnet IP
-ping 8.8.8.8     # External access
-ping <Other_Bubble_IP> # Inter-bubble access
+ip addr show tap0                # Should see the internal IP from the bubble's Flannel subnet (e.g., 10.244.x.x).
+ip route                         # Should see a default route via the bubble's bridge.
+ping 8.8.8.8                     # External access
+ping <other nested container IP> # Inter-container access
+wget -qO- http://google.com      # External access
 ```
 
-### Verification Steps
+## Architecture
 
-Once inside the container (via the command above), try the following commands to verify connectivity:
+Everything happens inside the **bubble** - the "master" container (`hpk-bubble`) running rootless on the host. The bubble uses [slirp4netns](https://github.com/rootless-containers/slirp4netns) for external networking, runs **Flannel** for internal, overlay networking, manages a bridge (`hpk-bridge`) that connects the Flannel interface with the interfaces of nested containers, and configures iptables for NATting traffic from the nested containers to the outside world.
 
-1.  **Check Interface**:
-    ```sh
-    ip addr show tap0
-    ```
-    You should see an IP address from your Flannel subnet (e.g., `10.244.x.x`).
-
-2.  **Check Route**:
-    ```sh
-    ip route
-    ```
-    The default gateway should be the host bridge IP.
-
-3.  **Ping Host Bridge**:
-    ```sh
-    ping -c 3 $HPK_GATEWAY_IP
-    ```
-
-4.  **Ping External Address** (requires internet access on host):
-    ```sh
-    ping -c 3 8.8.8.8
-    ```
-
-5.  **Test TCP Connection**:
-    ```sh
-    wget -qO- http://google.com
-    ```
-
-## Architecture Overview
-
-1.  **Initialization**: `hpktainer` reads Flannel config, creates/configures `hpk-bridge`, and allocates a container IP via `host-local` CNI.
-2.  **Host Setup**: It creates a tap interface on the host, adds it to the bridge, and starts `hpk-net-daemon` in **server mode** to listen on a UNIX socket.
-3.  **Container Launch**: `apptainer` is executed with `--network none` and `--bind` for the socket directory.
-4.  **Container Start**: The container entrypoint starts `hpk-net-daemon` in **client mode**, which connects to the host socket. Traffic is forwarded between the host tap and the container via this socket.
+Inside the bubble, **HPKtainer** (the Apptainer wrapper) is used to spawn containers that derive from `hpktainer-base`. These containers use a userspace network stack implemented with a pair of tap interfaces; one in the container and one in the bubble (the interface connected to the `hpk-bridge`). The pair is connected via two instances of the `hpk-net-daemon` - one in the container and one in the bubble - that forward traffic over a UNIX socket created in a shared folder.
