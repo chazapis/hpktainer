@@ -143,3 +143,148 @@ You suggested that I was using an old version of the container. I rebuilt and pu
 ## Done
 
 Commit all and push to GitHub.
+
+## Done
+
+I now want to take this project a step further. hpktainer is meant to run inside a "master" apptainer container, which I call "bubble".
+* The bubble runs rootless at the host (with fakeroot), using slirp4netns to get an IP for its network namespace.
+* The bubble runs flannel and exposes UDP port 8472 to the host, for cross-bubble/cross-host traffic. The network fabric managed by flannel functions as an overlay network for inter-bubble communication.
+* The bubble includes several tools, including apptainer, hpktainer, and hpk-net-daemon. Apptainer can be used (via hpktainer) within the bubble to start containers that are connected to the bubble's network overlay.
+
+I have already implemented a Dockerfile for the bubble (named `hpk-bubble`) and a script to start it (named `hpk-bubble.sh`), which are provided below:
+
+Dockerfile:
+```
+FROM ubuntu:24.04
+
+# Basic utilities
+RUN apt-get update && \
+    apt-get install -y vim-tiny curl iproute2 net-tools bridge-utils iputils-ping
+
+# Apptainer
+RUN apt-get install -y software-properties-common && \
+    add-apt-repository -y ppa:apptainer/ppa && \
+    apt-get install -y apptainer
+
+# CNI plugins
+RUN curl -LO https://github.com/containernetworking/plugins/releases/download/v1.9.0/cni-plugins-linux-arm64-v1.9.0.tgz && \
+    mkdir -p /opt/cni/bin && \
+    (cd /opt/cni/bin && tar -zxvf /cni-plugins-linux-arm64-v1.9.0.tgz) && \
+    rm /cni-plugins-linux-arm64-v1.9.0.tgz
+
+# Etcd and Flannel
+RUN apt-get install -y etcd-server etcd-client && \
+    apt-get install -y iptables nscd && \
+    curl -L -o /usr/local/bin/flanneld https://github.com/flannel-io/flannel/releases/download/v0.27.4/flanneld-arm64 && \
+    chmod +x /usr/local/bin/flanneld
+
+# TAP traffic forwarder
+COPY tap_forward.py /usr/local/bin/tap_forward
+```
+
+Script to start the bubble:
+```
+#!/bin/bash -x
+
+BUBBLE_ID=${1:-1}
+
+NAME=bubble$BUBBLE_ID
+
+CIDR=10.0.$((BUBBLE_ID + 1)).0
+CIDR_PREFIX=$(echo "$CIDR" | awk -F. '{print $1"."$2"."$3}')
+DNS_ADDR=$CIDR_PREFIX.3
+NS_ADDR=$CIDR_PREFIX.100
+
+cleanup() {
+	echo "Cleaning up..."
+	if [[ -n $SLIRP_PID ]]; then
+		kill $SLIRP_PID 2>/dev/null
+		wait $SLIRP_PID 2>/dev/null
+	fi
+	apptainer instance stop $NAME
+	[ -e $NAME-slirp4netns.sock ] && rm -f $NAME-slirp4netns.sock
+}
+
+trap cleanup INT TERM
+
+# Namespace
+[ -f resolv.conf ] || echo "nameserver $DNS_ADDR" > resolv.conf
+apptainer instance run \
+	--fakeroot \
+	--no-mount home \
+	--no-mount cwd \
+	--no-mount tmp \
+	--no-mount hostfs \
+	--writable-tmpfs \
+	--network=none \
+	--bind resolv.conf:/etc/resolv.conf \
+	docker://chazapis/hpk-bubble:4 \
+	$NAME
+PID=$(apptainer instance list -j $NAME | jq -r '.instances[] | .pid')
+
+# Userlevel networking
+slirp4netns --configure --cidr=$CIDR/24 --mtu=65520 --api-socket $NAME-slirp4netns.sock $PID tap0 &
+SLIRP_PID=$!
+
+while [ ! -e $NAME-slirp4netns.sock ]; do
+    sleep 1
+done
+echo -n '{"execute": "add_hostfwd", "arguments": {"proto": "udp", "host_addr": "0.0.0.0", "host_port": 8472, "guest_addr": "'$NS_ADDR'", "guest_port": 8472}}' | nc -U $NAME-slirp4netns.sock
+
+wait $SLIRP_PID
+```
+
+The script requires a network CIDR to be passed as an argument, which is used by slirp4netns to allocate an IP address for the bubble's network namespace. This IP address in that CIDR is then used to assign an IP address to the bubble's network namespace and set up the a NAT-enabled gateway for the bubble at the host. This network has nothing to do with the flannel network, which is auto-negotiated between flannel instances running in the bubbles.
+
+What I want:
+* Integrate this code into the repository. Since we now will have two Dockerfiles, you will need to place all files necessary for each container image in some directory (separate for `hpktainer-base` and `hpk-bubble`).
+* Create a `Makefile` that will build all components (binaries, containers) and push the container images to the registry (separate commands).
+* Extend the `hpk-bubble` container with the necessary `entrypoint.sh` script to start flannel and log its output somewhere at `/var/log`. In the `hpk-bubble.sh` script, you will need the IP address of an etcd instance to pass to flannel, which you can get from an environmental variable (should default to the host's IP address). The script should also use the host's IP address as the public IP of flannel. Assuming the host's IP is `192.168.64.9`, the command should look like this (`tap0` is always the tap interface created by slirp4netns):
+```
+flanneld --etcd-endpoints=http://192.168.64.9:2379 -ip-masq -iface tap0 --public-ip=192.168.64.9
+```
+* Make both container images build for arm64 and x86_64.
+* Expand the README file to include instructions for building and running the bubble and hpktainer. The user should first run a bubble, then connect to the container and run hpktainer inside the bubble.
+
+Tell me if you understand the above description in its entirety. If you have any - even minor question - let me know. Do not write any code yet.
+
+## Done - Clarifications requested
+
+Regarding the plan:
+* Name container image folders `hpktainer-base` and `hpktainer-bubble`. The whole repository will probably be renaimed to `hpk-bubble` or something else, so use the full name for each component.
+* In `hpk-bubble.sh`, name environment variables `HOST_IP` and `PUBLIC_IP` (avoid using the `APPTAINERENV_` prefix you suggested).
+
+Regarding clarifications requested:
+* Indeed, the `hpk-bubble` Dockerfile provided references some `tap_forward.py` file. This was an old version of the `hpk-net-daemon` binary. Place the `hpk-net-daemon` binary in `/usr/bin` instead.
+* Indeed, the `hpk-bubble` Dockerfile provided installs etcd server and client. This is not necessary. Remove them.
+* The registry prefix to be used in the Makefile should be variable, with a default name of `docker.io/chazapis`.
+
+## Done - Reviewed plan and generated code
+
+I am looking at the generated code and have some comments:
+* Please avoid using too verbose comments. Add comments (no objection to that), just be brief and to the point. Don't explain all the thought process, unless the code implements something non-trivial that needs justification.
+* The `hpktainer-base` Dockerfile will probably work for multiple architectures, as it uses a builder stage. The `hpk-bubble` Dockerfile will need to be updated to handle multiple architectures. It currently uses `arm64` as the default architecture and downloads `arm64` binaries for the CNI tools and flannel.
+
+Also, I updated .gitignore to exclude bin/, instead of hpktainer and hpk-net-daemon.
+
+## Done
+
+I also need to tag applied to container images in the Makefile to default to the current date in YYYYMMDD format, instead of "latest".
+
+## Done
+
+* In the Makefile, after pushing the images, add a command to tag the images with `latest` and push them again, so the scripts work with the latest tag.
+* You need to make `hpk-bubble.sh` executable.
+* Add in the README the command necessary to connect to the bubble once it is running (I use `apptainer shell instance://bubble1` when running with `./hpk-bubble.sh 1`).
+
+## Done
+
+I successfully started a bubble and connected to it. I need to run hpktainer inside the bubble, but it is missing from the `hpktainer-bubble` container image. I also want you to rename the `hpktainer-bubble` container image to `hpk-bubble`.
+
+## Done
+
+I successfully started a bubble, connected to it, and ran a container via hpktainer inside the bubble. Networking is not working, as the bubble is not configured with `sysctl net.ipv4.ip_forward=1`. This can be done in the bubble's entrypoint script.
+
+## Done
+
+Commit all and push to GitHub.
