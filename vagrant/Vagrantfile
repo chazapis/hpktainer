@@ -1,0 +1,39 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  
+  # Configure UTM provider for Apple Silicon
+  config.vm.provider "utm" do |utm|
+    utm.cpus = 2
+    utm.memory = 2048
+    # Enable shared graphics for clipboard sharing, if needed
+    # utm.graphics = "virtio-ramfb" 
+  end
+
+  # Prevent Vagrant from replacing the insecure key with a unique one.
+  # This avoids authentication issues when /home is mounted via NFS (overwriting .ssh)
+  # or when re-provisioning.
+  config.ssh.insert_key = false
+
+  # Controller Node
+  config.vm.define "controller" do |controller|
+    controller.vm.hostname = "controller"
+    
+    # Define role FIRST
+    controller.vm.provision "shell", inline: "echo 'controller' > /etc/vagrant_role"
+    # Then run installation
+    controller.vm.provision "shell", path: "install.sh"
+  end
+
+  # Worker Node
+  config.vm.define "node" do |node|
+    node.vm.hostname = "node"
+    
+    # Define role FIRST
+    node.vm.provision "shell", inline: "echo 'node' > /etc/vagrant_role"
+    # Then run installation
+    node.vm.provision "shell", path: "install.sh"
+  end
+end

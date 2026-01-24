@@ -288,3 +288,207 @@ I successfully started a bubble, connected to it, and ran a container via hpktai
 ## Done
 
 Commit all and push to GitHub.
+
+## Done
+
+I updated the README file. Commit and push.
+
+## Done
+
+Let's move one more step towards the final goal. Multiple bubbles are meant to run concurrently on an HPC cluster and host an internal Kubernetes environment.
+* Add K3s to each bubble. K3s should be started in the bubble's entrypoint script and its logs should go to `/var/log/k3s.log`.
+* One of the bubbles will be the master node. The others will be worker nodes.
+* Flannel should be reconfigured to use the Kubernetes API as the backend (running at the IP of the master bubble), instead of etcd.
+
+K3s (both master and workers) should run without the kubelet, as this requires root privileges and we don't want to run it as root in the bubble. I have another solution for the kubelet, but let's do this first.
+
+I have sucessfully ran K3s like this with:
+```
+k3s server \
+  --disable-agent \
+  --disable scheduler \
+  --disable coredns \
+  --disable servicelb \
+  --disable traefik \
+  --disable local-storage \
+  --disable metrics-server \
+  --disable-cloud-controller \
+  --write-kubeconfig-mode 777 \
+  --bind-address $IP_ADDRESS \
+  --node-ip=$IP_ADDRESS \
+  --write-kubeconfig /etc/kubernetes/admin.conf
+```
+
+In the Dockerfile, I used (this refers to a slightly older version, which I would like updated):
+```
+ARG TARGETARCH
+
+# K3s
+ARG K3S_VERSION=v1.29.1+k3s1
+
+RUN set -eux; \
+    if [ "${TARGETARCH}" = "amd64" ]; then \
+        K3S_ARCH=""; \
+    else \
+        K3S_ARCH="-${TARGETARCH}"; \
+    fi; \
+    curl -sfL "https://github.com/k3s-io/k3s/releases/download/${K3S_VERSION}/k3s${K3S_ARCH}" -o /usr/local/bin/k3s && \
+    chmod +x /usr/local/bin/k3s
+
+RUN mkdir -p /var/lib/rancher/k3s /etc/rancher/k3s
+```
+
+Tell me if you understand the above description in its entirety. If you have any - even minor question - let me know. Do not write any code yet.
+
+## Done - Clarifications requested
+
+1. I can't provide the exact K3s command for the worker bubbles, as it depends on the IP address of the master bubble. Note that it may be necessary to start the workers after the master has completed its initialization. In the setup, there will always be one master bubble (no HA mode) and zero or more worker bubbles. Master and workers should use the same container image and differentiate using environment variables.
+2. Correct, setting up flannel with a Kubernetes API backend requires the Kubernetes API to be operational and accessible using a `kubeconfig` file with the appropriate credentials. Ok. Let's do this later. For now keep the flannel setup as it is (with an etcd backend) and install/deploy etcd server at the master bubble. The etcd server should be started in the bubble's entrypoint script and its logs should go to `/var/log/etcd.log`.
+3. Yes, the bubble running the master should have port 6443 (Kubernetes API) exposed to the host, similar to how we expose UDP port 8472 for flannel now.
+4. Update K3s to a recent version. Use the latest one if possible.
+
+To deploy the setup the user will run the `hpk.slurm` slurm script, passing it the desired number of bubbles (minimum 1). `hpk.slurm` will then use `hpk-bubble.sh` to start individual bubbles, taking care of ordering (master first, then workers) and naming (as each bubble needs a separate $BUBBLE_ID).
+
+## Done
+
+* Use versions v1.35.0+k3s1 for K3s and v0.28.0 for flannel. Make the versions a variable in the Dockerfile for easy updating (as it currently is for K3s).
+* The default role for `hpk-bubble.sh` should be `master`; needed if someone wants to run then script directly (e.g. for debugging).
+* Be less verbose in your comments in `hpk.slurm`.
+
+## Done
+
+K3s v1.35.0+k3s1 was recently released. I set it in the Dockerfile manually. I also edited the Makefile, as `make images` is not necessary to create binaries as well.
+
+## Done
+
+I need to be able to test this setup. I use a macOS computer with Apple Silicon and UTM. I have installed Vagrant with the UTM plugin.
+
+I want the Vagrantfile (and any other files) to:
+* Start a two node cluster with Ubuntu 24.04 LTS, installed with Slurm.
+* The first node should run the Slurm controller and worker, while the second node should run another Slurm worker.
+* The fist node should expose `/home` via NFS. The second node should mount it at `/home`.
+* Make sure that both nodes have all security features disabled (firewall, SELinux, AppArmor, etc.).
+
+Then I need the instructions to upload the scripts to the nodes and run them.
+
+Tell me if you understand the above description in its entirety. If you have any - even minor question - let me know. Do not write any code yet.
+
+## Done - Clarifications requested
+
+I have no prefered Vagrant box to use. A generic one should be ok.
+
+Proceed with the implementation.
+
+## Done
+
+I ran `vagrant up` and it created the two nodes. However, I have issues connecting to them via `vagrant ssh`. The connection takes several minutes to complete.
+
+I have noticed that the VMs have different IP addresses. The master has `192.168.64.11` and the node has `192.168.64.12`.
+
+There are some errors in the provisioning logs, which I paste below:
+```
+    ...
+    master: cat: /etc/vagrant_role: No such file or directory
+    ...
+    master: Setting up NFS Client...
+    master: Created symlink /run/systemd/system/remote-fs.target.wants/rpc-statd.service → /usr/lib/systemd/system/rpc-statd.service.
+    master: mount.nfs: Connection refused for 192.168.56.11:/home on /home
+    master: Setting up Munge...
+    master: Setting up Slurm...
+    master: Synchronizing state of slurmd.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+    master: Executing: /usr/lib/systemd/systemd-sysv-install enable slurmd
+    master: Job for slurmd.service failed because the control process exited with error code.
+    master: See "systemctl status slurmd.service" and "journalctl -xeu slurmd.service" for details.
+    ...
+    node1: cat: /etc/vagrant_role: No such file or directory
+    ...
+    node1: Setting up NFS Client...
+    node1: Created symlink /run/systemd/system/remote-fs.target.wants/rpc-statd.service → /usr/lib/systemd/system/rpc-statd.service.
+    node1: mount.nfs: Connection refused for 192.168.56.11:/home on /home
+    node1: Setting up Munge...
+    node1: Setting up Slurm...
+    node1: Synchronizing state of slurmd.service with SysV service script with /usr/lib/systemd/systemd-sysv-install.
+    node1: Executing: /usr/lib/systemd/systemd-sysv-install enable slurmd
+    node1: Provisioning complete.
+    node1: Job for slurmd.service failed because the control process exited with error code.
+    node1: See "systemctl status slurmd.service" and "journalctl -xeu slurmd.service" for details.
+    ...
+```
+
+When inside the master, Slurm does not work:
+```
+$ sinfo
+sinfo: error: _parse_next_key: Parsing error at unrecognized key: MungeSocketPath
+sinfo: fatal: Unable to process configuration file
+```
+
+Neither does NFS, as both nodes have been setup as clients, which is logical, as the `install.sh` script reports that it can not find `/etc/vagrant_role`.
+
+## Done
+
+The nodes are provisioned correctly now and ssh works. I can connect to the master and the node. However, the node has been assigned a new, unexpected IP address (`192.168.64.13`). It seems that these addresses are assigned by UTM? Can they be fixed somehow, so the provisioning script can work predictably (ideally across different environments of different developers)?
+
+## Done
+
+Things work better now that you use mDNS and `.local` hostnames. NFS looks ok. Slurm shows both nodes, but I cannot run commands. Output:
+```
+$ sinfo
+PARTITION AVAIL  TIMELIMIT  NODES  STATE NODELIST
+debug*       up   infinite      1  idle* master
+debug*       up   infinite      1   idle node1
+$ srun hostname
+srun: error: Task launch for StepId=1.0 failed on node node1: Header lengths are longer than data received
+srun: error: Application launch failed: Header lengths are longer than data received
+srun: Job step aborted
+```
+
+Also, yes, update the README with the new instructions for using `master.local` to connect.
+
+## Done
+
+Syncing clocks with chrony did not fix it. Still the same error.
+
+Also, remove the comments from the files in the `vagrant` directory mentioning the IP addresses. They are not needed anymore.
+
+## Done
+
+I rejected the change to fix the uids/gids of Slurm and munge in the `install.sh` script, as it is not needed. Ubuntu packages use specific uids/gids for Slurm and munge, and I have verified that they are the same on both nodes.
+
+I would start by removing the `127.0.2.1` entries from the `/etc/hosts` file on both nodes, as they are not needed. In the master node it points to `master` and in node1 it points to `node1`. There is also an `127.0.1.1` entry in both nodes, pointing to `vagrant`.
+
+Then, set `SlurmUser` to `slurm` in the `/etc/slurm/slurm.conf` file on both nodes, as this is expected by the Slurm packages.
+
+Furthermore, apparmor is not disabled. It seems the only way to completely disable it is add `apparmor=0` to `GRUB_CMDLINE_LINUX_DEFAULT` or `GRUB_CMDLINE_LINUX` in `/etc/default/grub`, run `update-grub`, and reboot.
+
+## Done
+
+Maybe because I rejected some of the updates in `install.sh`, you could not apply the changes. Please try again now.
+
+## Done
+
+When I run `vagrant reload`, the node reboots, but Vagrant cannot connect to it. It loops with the message:
+```
+    node1: Warning: Authentication failure. Retrying...
+```
+
+If I run `vagrant ssh node1` it connects (although asks for a password, which is weird).
+
+Also, rename `master` to `controller` and `node1` to `node`.
+
+## Done
+
+Update the README with the new vagrant instructions (including `vagrant reload`).
+
+Also, rename `master` to `controller` and `worker` to `node` for all the other files (for bubbles).
+
+## Done
+
+Update the README as follows:
+* I want three sections "Building", "Running", and "Evaluating locally".
+* "Building" should contain the instructions for building the images. This should be the Makefile default anyway. There is no real need to build the binaries outside the bubble (unless you are a developer and want to try out things).
+* "Running" should contain the instructions for running the bubble through the Slurm script. There is no need to run the `hpk-bubble.sh` script directly. Add a note that this internally runs the `hpk-bubble.sh` script with the appropriate arguments.
+* "Evaluating locally" should contain the instructions for setting up a cluster locally using Vagrant. This should mention the Vagrant stuff, how to upload the `scripts` directory to the controller, and how to connect to the controller and run the Slurm script.
+
+## Done
+
+Nice! Commit and push the changes (note I have manually commited and pushed just before starting with the Vagrant stuff).
