@@ -25,6 +25,10 @@ sed -i '/127.0.2.1/d' /etc/hosts
 sed -i 's/GRUB_CMDLINE_LINUX_DEFAULT="/GRUB_CMDLINE_LINUX_DEFAULT="apparmor=0 /' /etc/default/grub
 update-grub
 
+# Enable br_netfilter for Flannel
+echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf
+modprobe br_netfilter
+
 # 2. Update System & Install Basics
 # Fix slow SSH
 echo "UseDNS no" >> /etc/ssh/sshd_config
@@ -33,7 +37,10 @@ echo 'Acquire::ForceIPv4 "true";' > /etc/apt/apt.conf.d/99force-ipv4
 systemctl restart ssh
 
 apt-get update
-apt-get install -y build-essential git slurm-wlm munge nfs-common avahi-daemon libnss-mdns
+apt-get install -y software-properties-common
+add-apt-repository -y ppa:apptainer/ppa
+apt-get update
+apt-get install -y git slurm-wlm munge nfs-common avahi-daemon libnss-mdns apptainer slirp4netns
 
 # Enable mDNS
 systemctl enable avahi-daemon

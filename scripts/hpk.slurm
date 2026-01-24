@@ -3,8 +3,6 @@
 #SBATCH --output=%x-%j.out
 #SBATCH --nodes=1
 #SBATCH --ntasks-per-node=1
-#SBATCH --cpus-per-task=4
-#SBATCH --mem=8G
 
 # Usage: sbatch hpk.slurm
 # The number of nodes allocated (N) determines the cluster size:
