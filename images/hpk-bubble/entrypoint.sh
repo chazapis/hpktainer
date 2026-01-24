@@ -29,8 +29,12 @@ if [ "$HPK_ROLE" = "controller" ]; then
          --data-dir /var/lib/etcd \
          >> /var/log/etcd.log 2>&1 &
     
-    # Wait for etcd?
-    sleep 2
+    # Wait for etcd
+    sleep 5
+    
+    # Initialize Flannel config
+    echo "Initializing Flannel config in Etcd..."
+    etcdctl --endpoints=http://127.0.0.1:2379 put /coreos.com/network/config '{"Network": "10.244.0.0/16", "SubnetLen": 24, "Backend": {"Type": "vxlan"}}'
 fi
 
 # Start flanneld
