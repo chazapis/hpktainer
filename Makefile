@@ -22,7 +22,7 @@ binaries:
 	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpktainer ./cmd/hpktainer
 	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-net-daemon ./cmd/hpk-net-daemon
 
-images: binaries
+images:
 	@echo "Building and pushing images..."
 	
 	# hpktainer-base

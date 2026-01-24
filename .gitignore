@@ -6,6 +6,7 @@ bin/
 # Artifacts
 *.sock
 /run/
+.vagrant/
 
 # Go
 go.work
