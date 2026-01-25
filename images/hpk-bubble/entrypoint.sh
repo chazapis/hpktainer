@@ -13,6 +13,18 @@ echo "  Role:          ${HPK_ROLE}"
 # Enable IP forwarding
 sysctl -w net.ipv4.ip_forward=1
 
+# Wait for tap0 interface to appear (created by slirp4netns)
+echo "Waiting for tap0 interface..."
+while ! ip link show tap0 >/dev/null 2>&1; do
+    sleep 0.1
+done
+# Ensure it is up
+ip link set tap0 up
+
+# Add Host IP as secondary address to tap0
+# This is required for Flannel VXLAN to use it as a source IP
+ip addr add ${HOST_IP}/32 dev tap0
+
 # Start Etcd if Controller
 if [ "$HPK_ROLE" = "controller" ]; then
     echo "Starting Etcd..."
