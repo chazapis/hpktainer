@@ -492,3 +492,92 @@ Update the README as follows:
 ## Done
 
 Nice! Commit and push the changes (note I have manually commited and pushed just before starting with the Vagrant stuff).
+
+## Done
+
+I don't need the `build-essentials` package within the Vagrant containers, but I need `apptainer` and `slirp4netns`. Apptainer is available in the default repository, so you need to add the PPA and install it (`ppa:apptainer/ppa`).
+
+## Done
+
+Remove any resource constraints from the `hpk.slurm` batch script. This should run one per node, regardless of the available CPU cores and memory on each node.
+
+Inside the bubbles, flannel probably needs some etcd initialization. The error I see is:
+```
+E0124 15:43:16.016622      24 main.go:519] Couldn't fetch network config: flannel config not found in etcd store. Did you create your config using etcdv3 API?
+```
+
+## Done
+
+Setting the initial value in etcd, requires a `put` instead of a `set`:
+```
+Apptainer>     etcdctl --endpoints=http://127.0.0.1:2379 set /coreos.com/network/config '{"Network": "10.244.0.0/16", "SubnetLen": 24, "Backend": {"Type": "vxlan"}}'
+Error: unknown command "set" for "etcdctl"
+```
+
+Also, I suppose we need to enable `br_netfilter` in the VMs somehow, as flannel logs:
+```E0124 15:48:01.877147      17 main.go:278] Failed to check br_netfilter: stat /proc/sys/net/bridge/bridge-nf-call-iptables: no such file or directory
+```
+
+## Done
+
+Commit and push the changes.
+
+## Done
+
+Following the instructions in the README, I successfully started the VMs, copied the code in, and ran the Slurm script. This created one bubble on each node. I connected to the bubbles and everything is running inside them, but I don't seem to have network/Internet connectivity in the node (everything is ok in the controller).
+
+# Done
+
+There is an issue. I'm starting 2 bubbles, and this shows up in the log:
+```
++ apptainer instance run --fakeroot --no-mount home --no-mount cwd --no-mount tmp --no-mount hostfs --writable-tmpfs --network=none --bind resolv.conf.bubble1:/etc/resolv.conf --env HOST_IP=192.168.64.11 --env ETCD_IP=192.168.64.11 --env PUBLIC_IP=192.168.64.11 docker://docker.io/chazapis/hpk-bubble:latest bubble1
++ apptainer instance run --fakeroot --no-mount home --no-mount cwd --no-mount tmp --no-mount hostfs --writable-tmpfs --network=none --bind resolv.conf.bubble2:/etc/resolv.conf --env HOST_IP=192.168.64.23 --env ETCD_IP=192.168.64.11 --env PUBLIC_IP=192.168.64.11 docker://docker.io/chazapis/hpk-bubble:latest bubble2
+```
+
+Both have the same value for `PUBLIC_IP` set to `192.168.64.11`. I think this variable is not even necessary. In `hpk.slurm`, `hpk-bubble.sh`, and the `entrypoint.sh` of the `hpk-bubble` image, it should be merged with `HOST_IP`.
+
+## Done
+
+Now I see this:
+```
++ apptainer instance run --fakeroot --no-mount home --no-mount cwd --no-mount tmp --no-mount hostfs --writable-tmpfs --network=none --bind resolv.conf.bubble1:/etc/resolv.conf --env HOST_IP=10.0.2.15 --env ETCD_IP=192.168.64.11 docker://docker.io/chazapis/hpk-bubble:latest bubble1
+```
+
+The problem lies in the fact that the VMs have two interfaces, both with a default gateway. Route list from the `controller` VM:
+```
+$ ip route
+default via 10.0.2.2 dev eth1 proto dhcp src 10.0.2.15 metric 100 
+default via 192.168.64.1 dev eth0 proto dhcp src 192.168.64.11 metric 100 
+10.0.2.0/24 dev eth1 proto kernel scope link src 10.0.2.15 metric 100 
+10.0.2.2 dev eth1 proto dhcp scope link src 10.0.2.15 metric 100 
+10.0.2.3 dev eth1 proto dhcp scope link src 10.0.2.15 metric 100 
+192.168.64.0/24 dev eth0 proto kernel scope link src 192.168.64.11 metric 100 
+192.168.64.1 dev eth0 proto dhcp scope link src 192.168.64.11 metric 100 
+```
+
+Can we disable the `10.0.2.15` interface on setup? Or just remove the default route?
+
+I understand that `hpk.slurm` sets the `ETCD_IP` from `hostname -I | awk '{print $1}'`, while `hpk-bubble.sh` sets the `HOST_IP` from `ip route get 1 | awk '{print $7; exit}'`. Choose one way to set the IP (the latter is more accurate) and update the code accordingly.
+
+## Done
+
+I accepted the changes. In `install.sh` you remove the default route for the `10.0.2.15` interface, but this is not permanent across reboots.
+
+## Done
+
+Looks like DNS broke. I rebuilt the VMs and:
+```
+vagrant@node:~$ ping controller.local
+ping: controller.local: Name or service not known
+vagrant@node:~$ ping node.local
+PING node.local (10.0.2.15) 56(84) bytes of data.
+^C64 bytes from 10.0.2.15: icmp_seq=1 ttl=64 time=0.027 ms
+
+--- node.local ping statistics ---
+1 packets transmitted, 1 received, 0% packet loss, time 0ms
+
+## Done
+
+Tested the whole thing, and it works within a node. For some reason, traffic across nodes does not work. I will debug this later, but I am listening to any suggestions.
+
+Commit and push all changes.
