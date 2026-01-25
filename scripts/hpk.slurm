@@ -18,7 +18,7 @@ if [ "$NUM_NODES" -eq 0 ]; then
 fi
 
 CONTROLLER_NODE=${NODES[0]}
-CONTROLLER_IP=$(srun --nodes=1 -w $CONTROLLER_NODE hostname -I | awk '{print $1}')
+CONTROLLER_IP=$(srun --nodes=1 -w $CONTROLLER_NODE ip route get 1 | awk '{print $7; exit}')
 
 echo "Cluster Setup:"
 echo "  Controller Node: $CONTROLLER_NODE ($CONTROLLER_IP)"
@@ -28,7 +28,6 @@ echo "  Nodes: ${NODES[@]}"
 echo "Starting Controller on $CONTROLLER_NODE..."
 export HPK_ROLE="controller"
 export ETCD_IP=$CONTROLLER_IP 
-export PUBLIC_IP=$CONTROLLER_IP 
 srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./scripts/hpk-bubble.sh 1 &
 
 # Wait for Controller initialization

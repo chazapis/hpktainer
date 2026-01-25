@@ -13,7 +13,6 @@ NS_ADDR=$CIDR_PREFIX.100
 HOST_IP_DETECTED=$(ip route get 1 | awk '{print $7; exit}')
 # Use provided ETCD_IP or default to detected host IP
 ETCD_IP=${ETCD_IP:-$HOST_IP_DETECTED}
-PUBLIC_IP=${PUBLIC_IP:-$HOST_IP_DETECTED}
 
 cleanup() {
 	echo "Cleaning up..."
@@ -23,12 +22,14 @@ cleanup() {
 	fi
 	apptainer instance stop $NAME
 	[ -e $NAME-slirp4netns.sock ] && rm -f $NAME-slirp4netns.sock
+    [ -e resolv.conf.$NAME ] && rm -f resolv.conf.$NAME
 }
 
 trap cleanup INT TERM
 
 # Namespace
-[ -f resolv.conf ] || echo "nameserver $DNS_ADDR" > resolv.conf
+RESOLV_CONF=resolv.conf.$NAME
+echo "nameserver $DNS_ADDR" > $RESOLV_CONF
 
 echo "Starting Bubble $NAME..."
 echo "  CIDR: $CIDR"
@@ -44,10 +45,9 @@ apptainer instance run \
 	--no-mount hostfs \
 	--writable-tmpfs \
 	--network=none \
-	--bind resolv.conf:/etc/resolv.conf \
+	--bind $RESOLV_CONF:/etc/resolv.conf \
 	--env HOST_IP=$HOST_IP_DETECTED \
 	--env ETCD_IP=$ETCD_IP \
-	--env PUBLIC_IP=$PUBLIC_IP \
 	docker://docker.io/chazapis/hpk-bubble:latest \
 	$NAME
 PID=$(apptainer instance list -j $NAME | jq -r '.instances[] | .pid')

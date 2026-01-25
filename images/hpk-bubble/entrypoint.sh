@@ -3,11 +3,10 @@
 # Default values if not provided
 HOST_IP=${HOST_IP:-$(ip route get 1 | awk '{print $7; exit}')}
 ETCD_IP=${ETCD_IP:-$HOST_IP}
-PUBLIC_IP=${PUBLIC_IP:-$HOST_IP}
 
 echo "Starting Flannel..."
 echo "  Etcd Endpoint: http://${ETCD_IP}:2379"
-echo "  Public IP:     ${PUBLIC_IP}"
+echo "  Public IP:     ${HOST_IP}"
 echo "  Interface:     tap0"
 echo "  Role:          ${HPK_ROLE}"
 
@@ -20,10 +19,10 @@ if [ "$HPK_ROLE" = "controller" ]; then
     # Config for single node etcd
     etcd --name default \
          --listen-client-urls http://0.0.0.0:2379 \
-         --advertise-client-urls http://${PUBLIC_IP}:2379 \
+         --advertise-client-urls http://${HOST_IP}:2379 \
          --listen-peer-urls http://0.0.0.0:2380 \
-         --initial-advertise-peer-urls http://${PUBLIC_IP}:2380 \
-         --initial-cluster default=http://${PUBLIC_IP}:2380 \
+         --initial-advertise-peer-urls http://${HOST_IP}:2380 \
+         --initial-cluster default=http://${HOST_IP}:2380 \
          --initial-cluster-token etcd-cluster-1 \
          --initial-cluster-state new \
          --data-dir /var/lib/etcd \
@@ -50,7 +49,7 @@ flanneld \
   --etcd-endpoints=$FLANNEL_ETCD \
   -ip-masq \
   -iface tap0 \
-  --public-ip=${PUBLIC_IP} \
+  --public-ip=${HOST_IP} \
   >> /var/log/flannel.log 2>&1 &
 
 FLANNEL_PID=$!
@@ -71,8 +70,8 @@ if [ "$HPK_ROLE" = "controller" ]; then
       --write-kubeconfig-mode 777 \
       --bind-address $(ip addr show tap0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1) \
       --node-ip=$(ip addr show tap0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1) \
-      --advertise-address ${PUBLIC_IP} \
-      --tls-san ${PUBLIC_IP} \
+      --advertise-address ${HOST_IP} \
+      --tls-san ${HOST_IP} \
       --write-kubeconfig /etc/kubernetes/admin.conf \
       >> /var/log/k3s.log 2>&1 &
 fi

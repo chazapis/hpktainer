@@ -29,6 +29,37 @@ update-grub
 echo "br_netfilter" > /etc/modules-load.d/br_netfilter.conf
 modprobe br_netfilter
 
+# Fix Routes: Persistent Fix to remove default route on 10.0.2.x (NAT)
+# so that 192.168.64.x is preferred.
+cat <<EOF > /usr/local/bin/fix-routes.sh
+#!/bin/bash
+# Find interface with 10.0.2.x default route
+default_dev_nat=\$(ip route | grep "default via" | grep "10.0.2" | awk '{print \$5}' | head -n1)
+if [ -n "\$default_dev_nat" ]; then
+    echo "Removing default route for \$default_dev_nat (NAT)..."
+    ip route del default dev \$default_dev_nat
+fi
+EOF
+chmod +x /usr/local/bin/fix-routes.sh
+
+cat <<EOF > /etc/systemd/system/fix-routes.service
+[Unit]
+Description=Fix Routing for Cluster IP Priority
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/fix-routes.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now fix-routes.service
+
 # 2. Update System & Install Basics
 # Fix slow SSH
 echo "UseDNS no" >> /etc/ssh/sshd_config
@@ -43,8 +74,17 @@ apt-get update
 apt-get install -y git slurm-wlm munge nfs-common avahi-daemon libnss-mdns apptainer slirp4netns
 
 # Enable mDNS
+# Configure Avahi to only listen on eth0 (Cluster Network) to avoid checking out 10.0.2.15 (NAT)
+sed -i 's/#allow-interfaces=eth0/allow-interfaces=eth0/' /etc/avahi/avahi-daemon.conf
+if ! grep -q "allow-interfaces=eth0" /etc/avahi/avahi-daemon.conf; then
+    # If it wasn't commented out, append it to [server] section (simple hack)
+    # or just replace the line if it exists
+    echo "allow-interfaces=eth0" >> /etc/avahi/avahi-daemon.conf
+fi
+
 systemctl enable avahi-daemon
 systemctl start avahi-daemon
+systemctl restart avahi-daemon
 
 # Time Sync (Crucial for Munge)
 echo "Setting up Time Sync..."
