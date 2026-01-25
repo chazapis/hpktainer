@@ -526,7 +526,7 @@ Commit and push the changes.
 
 Following the instructions in the README, I successfully started the VMs, copied the code in, and ran the Slurm script. This created one bubble on each node. I connected to the bubbles and everything is running inside them, but I don't seem to have network/Internet connectivity in the node (everything is ok in the controller).
 
-# Done
+## Done
 
 There is an issue. I'm starting 2 bubbles, and this shows up in the log:
 ```
@@ -575,9 +575,29 @@ PING node.local (10.0.2.15) 56(84) bytes of data.
 
 --- node.local ping statistics ---
 1 packets transmitted, 1 received, 0% packet loss, time 0ms
-
+```
 ## Done
 
 Tested the whole thing, and it works within a node. For some reason, traffic across nodes does not work. I will debug this later, but I am listening to any suggestions.
 
 Commit and push all changes.
+
+## Done
+
+The cross-node issue is caused by the fact that flannel's VXLAN interface was configured to use local 192.168.64.11 (the VM host IP) as the source for VXLAN packets, but that IP didn't exist on any interface inside the Apptainer container. The kernel couldn't send packets with a non-existent source IP, so VXLAN encapsulation silently failed. The solution is to add the public IP as a secondary address on tap0:
+```
+ip addr add 192.168.64.11/32 dev tap0  # example
+```
+
+Also, after `vagrant reload`, the node shows up in Slurm as down. We need to `scontrol update nodename=node state=resume` after a while, unless there is  a way to tell Slurm to automatically resume nodes.
+
+## Done
+
+Setting the second IP on the tap interface is not working. Logs state:
+```
+Cannot find device "tap0"
+```
+
+## Done
+
+Commit and push all changes (including `instructions.md`).
