@@ -84,18 +84,29 @@ if [ "$HPK_ROLE" = "controller" ]; then
       --node-ip=$(ip addr show tap0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1) \
       --advertise-address ${HOST_IP} \
       --tls-san ${HOST_IP} \
-      --write-kubeconfig /etc/kubernetes/admin.conf \
+      --write-kubeconfig /var/lib/hpk/admin.conf \
       >> /var/log/k3s.log 2>&1 &
 fi
 
+echo "Starting hpk-kubelet..."
 
-# Keep the container running (or maybe run a shell?)
-# If this is a bubble, user likely wants a shell or just to keep it alive.
-# "The user should first run a bubble, then connect to the container"
-# So we probably just sleep infinity or wait.
-# But if prompt is needed? entrypoint usually execs CMD.
-# Let's exec bash if no args, or exec args.
+# Wait for kubeconfig (Controller creates it, Workers wait for it)
+echo "Waiting for /var/lib/hpk/admin.conf..."
+while [ ! -f /var/lib/hpk/admin.conf ]; do
+  sleep 1
+done
 
+# Start hpk-kubelet
+# Using --run-slurm=false to run locally
+# Using --apptainer=hpktainer to use our networking wrapper
+hpk-kubelet \
+  --kubeconfig=/var/lib/hpk/admin.conf \
+  --run-slurm=false \
+  --apptainer=hpktainer \
+  --nodename=$(hostname) \
+  >> /var/log/hpk-kubelet.log 2>&1 &
+
+# Keep the container running
 if [ "$#" -eq 0 ]; then
     # Default to bash
     exec /bin/bash

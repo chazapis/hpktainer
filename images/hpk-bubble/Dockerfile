@@ -6,6 +6,8 @@ RUN go mod download
 COPY . .
 RUN go build -o /bin/hpk-net-daemon ./cmd/hpk-net-daemon
 RUN go build -o /bin/hpktainer ./cmd/hpktainer
+RUN go build -o /bin/hpk-kubelet ./cmd/hpk-kubelet
+RUN go build -o /bin/hpk-kubelet ./cmd/hpk-kubelet
 
 FROM ubuntu:24.04
 
@@ -40,6 +42,7 @@ RUN mkdir -p /var/lib/rancher/k3s /etc/rancher/k3s
 
 COPY --from=builder /bin/hpk-net-daemon /usr/bin/hpk-net-daemon
 COPY --from=builder /bin/hpktainer /usr/bin/hpktainer
+COPY --from=builder /bin/hpk-kubelet /usr/bin/hpk-kubelet
 COPY images/hpk-bubble/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 

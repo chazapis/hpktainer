@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"hpktainer/internal/netutil"
+	"hpk/internal/netutil"
 
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
