@@ -1,41 +1,77 @@
-# HPKtainer
+# HPK
 
-**HPKtainer** is a CLI wrapper for [Apptainer](https://apptainer.org/) providing custom networking integrated with [Flannel](https://github.com/flannel-io/flannel). It is designed to run inside a **bubble** (a rootless Apptainer instance) to provide overlay networking between nested containers across different hosts.
+HPK allows HPC users to run their own private Kubernetes "mini Cloud" on a typical HPC cluster and then issue commands to it using Kubernetes-native tools.
 
-## Architecture
-Everything happens inside the **bubble** - the "controller" or "node" container (`hpk-bubble`) running rootless on the host. The bubble uses [slirp4netns](https://github.com/rootless-containers/slirp4netns) for external networking, runs **Flannel** for internal, overlay networking, manages a bridge (`hpk-bridge`) that connects the Flannel interface with the interfaces of nested containers, and configures iptables for NATting traffic from the nested containers to the outside world.
+To deploy, simply run:
 
-Inside the bubble, **HPKtainer** (the Apptainer wrapper) is used to spawn containers that derive from `hpktainer-base`. These containers use a userspace network stack implemented with a pair of tap interfaces; one in the container and one in the bubble (the interface connected to the `hpk-bridge`). The pair is connected via two instances of the `hpk-net-daemon` - one in the container and one in the bubble - that forward traffic over a UNIX socket created in a shared folder.
+```bash
+sbatch --nodes=3 scripts/hpk.slurm
+```
+
+Then configure and use `kubectl`:
+
+```bash
+export KUBECONFIG=${HOME}/.hpk/kubernetes/admin.conf
+kubectl get nodes
+```
+
+## Implementation
+
+### Overview
+
+Users run a Slurm command to deploy one rootless container per cluster node, which we call **bubble** (using the `hpk-bubble` image). One bubble acts as the Kubernetes control plane, while the others act as worker nodes; together they form the Kubernetes cluster. Each bubble runs an instance of [K3s](https://k3s.io/), alongside the HPK-specific kubelet (`hpk-kubelet`), implemented using the [Virtual Kubelet](https://github.com/virtual-kubelet/virtual-kubelet) framework.
+
+For external networking, bubbles use [slirp4netns](https://github.com/rootless-containers/slirp4netns), while for internal, overlay networking they run [Flannel](https://github.com/flannel-io/flannel) and communicate over VXLAN tunnels (each host forwards UDP port 8472 to the bubble).
+
+Inside the bubble, an [Apptainer](https://apptainer.org/) wrapper (`hpktainer`) is used to spawn "pods" (using the `hpk-pause` image, derived from `hpktainer-base`); these are containers that are given  unique network addresses in the corresponding Flannel subnet and host user application containers.
+
+All pod containers are placed in a bridge (`hpk-bridge`) at the bubble level to talk to each other directly. With the proper routing rules, they can route traffic to pods running in other bubbles (via the Flannel interface) and the outside world.
+
+The pod network stack is again implemented in userspace using a pair of TAP interfaces; one in the nested container and one in the bubble (the interface connected to the `hpk-bridge`). The pair is connected via two instances of the `hpk-net-daemon` that forward traffic over a UNIX socket created in a shared folder.
+
+### Architecture
+
+HPK implements a **4-level distributed architecture**.
+
+1. **Level 1: Host Node (Slurm Worker)**
+    * The physical node managed by Slurm.
+    * Executes `hpk.slurm`, which launches the bubble.
+
+2. **Level 2: Bubble (Node Overlay)**
+    * Implemented in the `hpk-bubble` container.
+    * An Apptainer instance acting as a virtual node.
+    * Runs K3s (the base Kubernetes distribution) and Flannel (overlay networking). The first bubble, which acts as the Kubernetes control plane, also runs [etcd](https://etcd.io/) for supporting Flannel.
+    * Runs the local `hpk-kubelet`, which registers itself as a node in the K3s cluster.
+    * Connects to other bubbles via a VXLAN overlay network (Flannel).
+
+3. **Level 3: Pod**
+    * Implemented in the `hpk-pause` container.
+    * Spawned by `hpk-kubelet` via `hpktainer`.
+    * Each Pod is an Apptainer container with its own network namespace connected to the Bubble's bridge (`hpk-bridge`).
+    * The Pod's entrypoint is the `hpk-pause` binary, which acts as a "pause container" to hold the network namespace and capture application container signals.
+
+4. **Level 4: Application Container**
+    * User application containers spawned by `hpk-pause`.
+    * These run within the **same network namespace** as the Level 3 Pod.
+    * They share the Pod's IP address and can communicate over `localhost`.
 
 ## Building
 
-To build the necessary container images (`hpktainer-base` and `hpk-bubble`) for multi-architecture (amd64/arm64) support, run:
+All binaries are built and embedded in container images. The deployment script uses these images.
+
+To build, run:
 
 ```bash
 make images
 ```
 
-This uses `docker buildx` to build and push the images to the configured registry (default: `docker.io/chazapis`). You can override the registry:
+This uses `docker buildx` to build and push the images with multi-architecture support (amd64/arm64) to the configured registry (default: `docker.io/chazapis`). You can override the registry:
 
 ```bash
 REGISTRY=myregistry.io/user make images
 ```
 
 *Note for developers: You can also build the binaries locally for testing purposes using `make binaries`. These will be placed in `bin/`.*
-
-## Running
-
-The primary way to run HPKtainer clusters is via the provided Slurm script, which orchestrates the launch of multiple bubbles (one Controller and N-1 Nodes).
-
-To deploy a cluster with N bubbles:
-
-```bash
-sbatch --nodes=3 scripts/hpk.slurm
-```
-
-This script internally executes `scripts/hpk-bubble.sh` with the appropriate arguments (`1 controller` for the first node, `ID node` for others) on the allocated nodes. It ensures:
-1.  The **Controller** bubble starts first, initializing K3s (port 6443) and Etcd (port 2379).
-2.  **Node** bubbles join the network, connecting to the Controller's Flannel/Etcd.
 
 ## Evaluating locally
 
@@ -57,18 +93,16 @@ Upload the project scripts to the controller node. Since the repository structur
 
 ```bash
 # From the repository root on your host
-scp -r -o StrictHostKeyChecking=no . vagrant@controller.local:~/hpktainer
-# (Password is 'vagrant')
+scp -r -o StrictHostKeyChecking=no . vagrant@controller.local:~/hpk # (password is 'vagrant')
 ```
 
 ### 3. Run the Cluster
 Connect to the controller and submit the Slurm job:
 
 ```bash
-ssh -o StrictHostKeyChecking=no vagrant@controller.local
-# (Password: 'vagrant')
+ssh -o StrictHostKeyChecking=no vagrant@controller.local # (password is 'vagrant')
 
-cd hpktainer
+cd hpk
 # Ensure images are available (or build/pull them if relevant in your env)
 sbatch --nodes=2 scripts/hpk.slurm
 ```

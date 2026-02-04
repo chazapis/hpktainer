@@ -13,7 +13,7 @@ import (
 	"syscall"
 	"time"
 
-	"hpktainer/internal/network"
+	"hpk/internal/network"
 
 	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"

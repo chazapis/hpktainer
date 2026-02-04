@@ -31,6 +31,7 @@ trap cleanup INT TERM
 RESOLV_CONF=resolv.conf.$NAME
 echo "nameserver $DNS_ADDR" > $RESOLV_CONF
 
+mkdir -p $HOME/.hpk
 echo "Starting Bubble $NAME..."
 echo "  CIDR: $CIDR"
 echo "  Host IP: $HOST_IP_DETECTED"
@@ -46,6 +47,7 @@ apptainer instance run \
 	--writable-tmpfs \
 	--network=none \
 	--bind $RESOLV_CONF:/etc/resolv.conf \
+	--bind $HOME/.hpk:/var/lib/hpk \
 	--env HOST_IP=$HOST_IP_DETECTED \
 	--env ETCD_IP=$ETCD_IP \
 	docker://docker.io/chazapis/hpk-bubble:latest \

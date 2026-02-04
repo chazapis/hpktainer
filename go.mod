@@ -1,4 +1,4 @@
-module hpktainer
+module hpk
 
 go 1.23.4
 

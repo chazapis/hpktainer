@@ -601,3 +601,58 @@ Cannot find device "tap0"
 ## Done
 
 Commit and push all changes (including `instructions.md`).
+
+## Done
+
+I want you to download the `staging` directory of the [HPK project](https://github.com/CARV-ICS-FORTH/HPK) into an `hpk` folder and analyze its contents. In there, you should find code, documentation, and tests for a Kubernetes kubelet (based on the Virtual Kubelet project) that aims to provide Kubernetes integration with Slurm.
+
+The project folder contains two binaries written in Go, `hpk` and `pause`, compiled via a Makefile to `hpk-kubelet` and `hpk-pause` respectively:
+* `hpk-kubelet` is meant to run as the kubelet alongside K3s (with the internal kubelet disabled) on one node. The user communicates via `kubectl` to K3s's API server, which forwards pod lifecycle events to `hpk-kubelet`. `hpk-kubelet` then interacts with Slurm to allocate resources and starts apptainer (or singularity) containers in the Slurm cluster.
+* Each Kubernetes pod is implemented in HPK with nested containers, where the parent container is a "pause" container running the `hpk-pause` agent, and the child containers are the actual containers of the pod.
+
+What I want you to do:
+* Analyze the code and the documentation to understand how HPK works.
+* Copy over the code for the `hpk-kubelet` and `hpk-pause` binaries in the `hpktainer` project (I would suggest putting `cmd/hpk` into `cmd/hpk-kubelet` and `cmd/pause` into `cmd/hpk-pause`).
+* Integrate `hpk-kubelet` into the `hpk-bubble` image and use it as the kubelet for the K3s instance that runs in the `hpk-bubble`.
+* Create a new `hpk-pause` image based on the `hpktainer-base` image, as it will be used by HPK's kubelet.
+* If needed, modify HPK's code to use apptainer instead of singularity.
+* Rename the whole project to HPK (hpktainer is just the name of one component ).
+
+This will be HPK 2.0 that differs in one fundamental way from the HPK 1.x version you will download: HPK 1.x used one K3s instance and one kubelet that was responsible for the pod lifecycle across the whole Slurm installation. HPK 2.0 will use a more "typical" deployment scheme, where each Slurm node runs a bubble containing one K3s instance and one kubelet.
+
+Tell me if you understand the above description in its entirety. If you have any - even minor question - let me know. You can download the code to analyze it, but do not do any actions or write any new code yet.
+
+## Done - Analyzed code, created an implementation plan
+
+Hold on. The repository downloaded is not at the `staging` branch. Please checkout `staging` and re-analyze the code.
+
+Also, you mention that "`hpk-pause` is an active agent (written in Go) that runs inside the job. It queries the K8s API, sets up DNS, and spawns Apptainer containers." Correct. Note that it implements the top-level pod functionality. The containers it spawns are the pod-internal containers. `hpk-pause` cannot be integrated into `hpktainer`. It should run with `hpktainer` as an implementation derived from `hpktainer-base`. The idea is: `hpk.slurm` runs `hpk-bubble.sh` on each node. This creates bubbles (1st level environments) where K3s runs. `hpk-kubelet` runs inside each bubble and manages the lifecycle of the pods. Each pod (2nd level environment) is spawned with `hpktainer`. `hpk-pause` runs inside each pod and manages the lifecycle of the containers in the pod (3rd level environment).
+
+## Done - Analyzed code, updated the implementation plan
+
+You got the conceptual part of it correct. I have some comments regarding the implementation plan:
+* `hpk-kubelet` has a flag to avoid `sbatch` and run apptainer directly. Use that instead of refactoring. Use `hpktainer` instead of `apptainer` when the flag is active. If this is not possible (i.e., same code running containers in both cases) let me know, so we can figure out some other solution.
+* `hpk-kubelet` should not start from `hpk-bubble.sh`, but inside the `hpk-bubble` container by its `entrypoint.sh`. Make sure to keep logs in `/var/log/hpk-kubelet.log` like other daemons.
+
+One more thing I forgot to mention is that the HPK 1.x integration also includes a custom simple scheduler and a webhook that monitors Kubernetes service objects. These are not needed for HPK 2.0, so you can ignore them.
+
+## Done - Updated the implementation plan
+
+One comment on the implementation plan: You mention "create hpk-pause image derived from hpktainer-base (...), ensure hpktainer-base has apptainer installed." This is not necessary. The `hpk-pause` image that will be derived from `hpktainer-base` will have apptainer installed, but `hpktainer-base` does not need to have apptainer installed. It will just be a minimal container showcasing the bubble-based networking integration.
+
+## Done
+
+* In the Makefile, add the new binaries to the `binaries` target and remove the `binaries` target from the `all` target.
+* Remove the `temp_hpk_repo` directory and `hpk` if not necessary.
+* Rename this project to "HPK" in the README and other places. Rename the `hpktainer` package to `hpk` in the `go.mod` file and update all imports accordingly.
+* Update the "architecture" section of the README with the new overall design (as you described it-with 4 stages-in the latest implementation plan).
+
+## Stopped
+
+Don't just change all strings in all `.go` files from `hpktainer` to `hpk`. `hpktainer` is still a binary that will be used by `hpk-kubelet` to spawn containers. So it should keep its name. The only thing that should change is the package name and the imports. Perhaps it is safer to rename `hpktainer/` strings to `hpk/`.
+
+## Done
+
+I updated the README manually.
+
+Commit and push all changes (including `instructions.md`) to a new branch called `hpk2`.
