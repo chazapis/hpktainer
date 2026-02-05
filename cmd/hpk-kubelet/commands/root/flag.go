@@ -18,7 +18,7 @@ import (
 	"os"
 	"time"
 
-	"hpk/compute"
+	"hpk/internal/compute"
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 )

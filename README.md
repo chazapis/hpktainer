@@ -62,13 +62,13 @@ All binaries are built and embedded in container images. The deployment script u
 To build, run:
 
 ```bash
-make images
+make
 ```
 
 This uses `docker buildx` to build and push the images with multi-architecture support (amd64/arm64) to the configured registry (default: `docker.io/chazapis`). You can override the registry:
 
 ```bash
-REGISTRY=myregistry.io/user make images
+REGISTRY=myregistry.io/user make
 ```
 
 *Note for developers: You can also build the binaries locally for testing purposes using `make binaries`. These will be placed in `bin/`.*

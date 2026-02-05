@@ -23,7 +23,7 @@ import (
 	"time"
 
 	"hpk/cmd/hpk-kubelet/commands"
-	"hpk/compute"
+	"hpk/internal/compute"
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 	"github.com/virtual-kubelet/virtual-kubelet/errdefs"
@@ -38,7 +38,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client/config"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	"hpk/provider"
+	"hpk/internal/provider"
 	"github.com/dimiro1/banner"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"

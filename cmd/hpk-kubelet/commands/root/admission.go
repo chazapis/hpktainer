@@ -19,7 +19,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"hpk/provider"
+	"hpk/internal/provider"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	kwhhttp "github.com/slok/kubewebhook/v2/pkg/http"

@@ -1,0 +1,16 @@
+FROM ubuntu:24.04
+
+# Install Go 1.25 from PPA
+RUN apt-get update && \
+    apt-get install -y software-properties-common && \
+    add-apt-repository ppa:longsleep/golang-backports && \
+    apt-get update && \
+    apt-get install -y golang-1.25 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set Go environment variables
+ENV GOROOT=/usr/lib/go-1.25
+ENV GOPATH=/root/.go
+ENV PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+
+WORKDIR /src
