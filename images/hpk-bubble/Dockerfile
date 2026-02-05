@@ -1,13 +1,13 @@
 # Builder stage for hpk-net-daemon
-FROM golang:alpine AS builder
+ARG REGISTRY=docker.io/chazapis
+FROM ${REGISTRY}/hpk-builder:latest AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /bin/hpk-net-daemon ./cmd/hpk-net-daemon
-RUN go build -o /bin/hpktainer ./cmd/hpktainer
-RUN go build -o /bin/hpk-kubelet ./cmd/hpk-kubelet
-RUN go build -o /bin/hpk-kubelet ./cmd/hpk-kubelet
+RUN CGO_ENABLED=0 go build -o /bin/hpk-net-daemon ./cmd/hpk-net-daemon
+RUN CGO_ENABLED=0 go build -o /bin/hpktainer ./cmd/hpktainer
+RUN CGO_ENABLED=0 go build -o /bin/hpk-kubelet ./cmd/hpk-kubelet
 
 FROM ubuntu:24.04
 

@@ -6,9 +6,17 @@ VERSION ?= $(shell date +%Y%m%d)
 # Binary output directory
 BIN_DIR = bin
 
-.PHONY: all binaries images clean
+.PHONY: all builder binaries images clean
 
-all: images
+all: builder images
+
+builder:
+	@echo "Building and pushing hpk-builder image..."
+	docker buildx build --platform linux/amd64,linux/arm64 \
+		-t $(REGISTRY)/hpk-builder:$(VERSION) \
+		-t $(REGISTRY)/hpk-builder:latest \
+		--push \
+		-f images/hpk-builder/Dockerfile images/hpk-builder
 
 binaries:
 	@echo "Building binaries..."
@@ -31,6 +39,7 @@ images:
 	
 	# hpktainer-base
 	docker buildx build --platform linux/amd64,linux/arm64 \
+		--build-arg REGISTRY=$(REGISTRY) \
 		-t $(REGISTRY)/hpktainer-base:$(VERSION) \
 		-t $(REGISTRY)/hpktainer-base:latest \
 		--push \
@@ -38,6 +47,7 @@ images:
 
 	# hpk-bubble
 	docker buildx build --platform linux/amd64,linux/arm64 \
+		--build-arg REGISTRY=$(REGISTRY) \
 		-t $(REGISTRY)/hpk-bubble:$(VERSION) \
 		-t $(REGISTRY)/hpk-bubble:latest \
 		--push \
@@ -45,6 +55,7 @@ images:
 
 	# hpk-pause
 	docker buildx build --platform linux/amd64,linux/arm64 \
+		--build-arg REGISTRY=$(REGISTRY) \
 		-t $(REGISTRY)/hpk-pause:$(VERSION) \
 		-t $(REGISTRY)/hpk-pause:latest \
 		--push \

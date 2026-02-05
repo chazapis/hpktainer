@@ -656,3 +656,100 @@ Don't just change all strings in all `.go` files from `hpktainer` to `hpk`. `hpk
 I updated the README manually.
 
 Commit and push all changes (including `instructions.md`) to a new branch called `hpk2`.
+
+## Done
+
+`hpk-kubelet` fails to build:
+```
+GOOS=linux GOARCH=amd64 go build -o bin/linux/amd64/hpk-kubelet ./cmd/hpk-kubelet
+cmd/hpk-kubelet/main.go:27:2: no required module provides package github.com/pkg/errors; to add it:
+	go get github.com/pkg/errors
+cmd/hpk-kubelet/main.go:28:2: no required module provides package github.com/sirupsen/logrus; to add it:
+	go get github.com/sirupsen/logrus
+cmd/hpk-kubelet/main.go:29:2: no required module provides package github.com/spf13/cobra; to add it:
+	go get github.com/spf13/cobra
+...
+```
+
+## Done
+
+It still fails.
+
+## Done
+
+Still fails.
+
+Looking at the errors, there are still imports in the code for `hpk/compute` and `hpk/provider`. These should change to `hpk/pkg/compute` and `hpk/pkg/provider` respectively.
+
+Also, these two folders were not under `pkg` in the original repository. They were at the top level. Perhaps they should go under `internal` instead of `pkg`?
+
+## Done
+
+I fixed compilation by running `go get hpk/cmd/hpk-kubelet` and `go get hpk/cmd/hpk-pause`. This added a lot of dependencies to `go.mod` and `go.sum`. There was also some non-working import in one of the files that needed updating.
+
+Now move `compute` and `provider` folders from `pkg` to `internal` and update all imports accordingly.
+
+Do not automatically commit and push. I will tell you when to do that.
+
+## Done - Switched model from Gemini 3 Pro (High) to Claude Sonnet 4.5
+
+The `hpk-pause` image failed to build. Log:
+```
+...
+ => WARN: InvalidDefaultArgInFrom: Default value for ARG ${BASE_IMAGE} results in empty or invalid bas  0.0s
+ => WARN: UndefinedArgInFrom: FROM argument 'BASE_IMAGE' is not declared (line 11)                      0.0s
+
+ 2 warnings found (use docker --debug to expand):
+ - InvalidDefaultArgInFrom: Default value for ARG ${BASE_IMAGE} results in empty or invalid base image name (line 11)
+ - UndefinedArgInFrom: FROM argument 'BASE_IMAGE' is not declared (line 11)
+Dockerfile:11
+--------------------
+   9 |     # Final stage
+  10 |     ARG BASE_IMAGE=docker.io/chazapis/hpktainer-base:latest
+  11 | >>> FROM ${BASE_IMAGE}
+  12 |     
+  13 |     # Install Apptainer (required for hpk-pause agent to spawn containers)
+--------------------
+ERROR: failed to solve: base name (${BASE_IMAGE}) should not be blank
+```
+
+## Done
+
+Also, for the `hpk-pause` image, the BASE_IMAGE argument should come from the Makefile, so in case the user sets a different REGISTRY, it will pass through.
+
+## Done
+
+I fixed it by pushing the `ARG` with `FROM` at the very beginning of the Dockerfile. Re-declaring `ARG` after `FROM` was not necessary.
+
+The image build now fails because `hpk-pause` extends `hpktainer-base`, the former being built on Ubuntu, the latter on Alpine. I want you to switch all container images to Ubuntu, so we are consistent and binaries are built on the same base image.
+
+## Done
+
+You build all images using `golang:1.23`, but this is based on another Debian instead of Ubuntu and it uses an older version of Go.
+
+Create a new image called `hpk-builder` based on `ubuntu:24.04` and use it to build all images. You need the following commands to install Go 1.25 (which is the version mentioned in `go.mod` and the one I have installed locally):
+```
+apt-get install -y software-properties-common
+add-apt-repository ppa:longsleep/golang-backports
+apt-get update
+apt-get install golang-1.25
+```
+
+And you need to set these variables in `.bashrc`:
+```
+export GOROOT=/usr/lib/go-1.25
+export GOPATH=$HOME/.go
+export PATH=$PATH:$GOROOT/bin:$GOPATH/bin
+```
+
+Add a separate step in the Makefile, called `builder`, that builds and uploads the `hpk-builder` image. Add `builder` as a dependency to the `all` target, before `images`.
+
+Change the README to suggest using just `make` instead of `make images` to build the project.
+
+## Done
+
+Instead of using `BASE_IMAGE` and `BUILDER_IMAGE` in the Dockerfiles, use `REGISTRY`, which is consistent with the Makefile variable. Also, use only one `ARG` for the registry, not two, at the top of the file, before any `FROM` commands, or else it doesn't work.
+
+## Done
+
+Commit and push all changes.

@@ -1,14 +1,14 @@
 # Builder stage
-FROM golang:alpine AS builder
+ARG REGISTRY=docker.io/chazapis
+FROM ${REGISTRY}/hpk-builder:latest AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /bin/hpk-pause ./cmd/hpk-pause
+RUN CGO_ENABLED=0 go build -o /bin/hpk-pause ./cmd/hpk-pause
 
 # Final stage
-ARG BASE_IMAGE=docker.io/chazapis/hpktainer-base:latest
-FROM ${BASE_IMAGE}
+FROM ${REGISTRY}/hpktainer-base:latest
 
 # Install Apptainer (required for hpk-pause agent to spawn containers)
 RUN apt-get update && \
