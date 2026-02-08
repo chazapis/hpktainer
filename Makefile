@@ -6,7 +6,7 @@ VERSION ?= $(shell date +%Y%m%d)
 # Binary output directory
 BIN_DIR = bin
 
-.PHONY: all builder binaries images clean
+.PHONY: all builder binaries images develop clean
 
 all: builder images
 
@@ -60,6 +60,53 @@ images:
 		-t $(REGISTRY)/hpk-pause:latest \
 		--push \
 		-f images/hpk-pause/Dockerfile .
+
+develop:
+	@echo "Building images for local development..."
+	
+	# Build hpk-builder
+	docker build --build-arg REGISTRY=$(REGISTRY) \
+		-t $(REGISTRY)/hpk-builder:latest \
+		-f images/hpk-builder/Dockerfile images/hpk-builder
+	
+	# Build hpktainer-base
+	docker build --build-arg REGISTRY=$(REGISTRY) \
+		-t $(REGISTRY)/hpktainer-base:latest \
+		-f images/hpktainer-base/Dockerfile .
+	
+	# Build hpk-bubble
+	docker build --build-arg REGISTRY=$(REGISTRY) \
+		-t $(REGISTRY)/hpk-bubble:latest \
+		-f images/hpk-bubble/Dockerfile .
+	
+	# Build hpk-pause
+	docker build --build-arg REGISTRY=$(REGISTRY) \
+		-t $(REGISTRY)/hpk-pause:latest \
+		-f images/hpk-pause/Dockerfile .
+	
+	@echo "Exporting images to tar files..."
+	@mkdir -p /tmp/hpk-images
+	docker save -o /tmp/hpk-images/hpk-builder.tar $(REGISTRY)/hpk-builder:latest
+	docker save -o /tmp/hpk-images/hpktainer-base.tar $(REGISTRY)/hpktainer-base:latest
+	docker save -o /tmp/hpk-images/hpk-bubble.tar $(REGISTRY)/hpk-bubble:latest
+	docker save -o /tmp/hpk-images/hpk-pause.tar $(REGISTRY)/hpk-pause:latest
+	
+	@echo "Copying images to VMs..."
+	# Using sshpass if available to automate password entry
+	$(eval SSHPASS := sshpass -p vagrant)
+	@command -v sshpass >/dev/null 2>&1 || { echo "Error: sshpass is required for automated password entry. Install it or run commands manually."; exit 1; }
+	
+	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
+	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@node.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
+	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@controller.local:~/.hpk/images/
+	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@node.local:~/.hpk/images/
+	
+	@echo "Copying scripts to controller..."
+	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/hpk"
+	$(SSHPASS) scp -r -o StrictHostKeyChecking=no scripts/* vagrant@controller.local:~/hpk/
+	
+	@echo "Development images deployed successfully!"
+	@echo "Set HPK_DEV=1 in hpk.slurm to use local images."
 
 clean:
 	rm -rf $(BIN_DIR)

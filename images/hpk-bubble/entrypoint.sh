@@ -147,10 +147,19 @@ done
 echo "Starting hpk-kubelet..."
 # Using --run-slurm=false to run locally
 # Using --apptainer=hpktainer to use our networking wrapper
+
+# Set pause container path based on development mode
+if [ "${HPK_DEV:-0}" = "1" ]; then
+    PAUSE_IMAGE="/var/lib/hpk/images/hpk-pause.sif"
+else
+    PAUSE_IMAGE=""
+fi
+
 KUBECONFIG=/var/lib/hpk/kubeconfig \
 APISERVER_KEY_LOCATION=/var/lib/hpk/kubelet.key \
 APISERVER_CERT_LOCATION=/var/lib/hpk/kubelet.crt \
 VKUBELET_ADDRESS=${HOST_IP} \
+PAUSE_IMAGE=${PAUSE_IMAGE} \
 hpk-kubelet \
   --run-slurm=false \
   --apptainer=hpktainer \

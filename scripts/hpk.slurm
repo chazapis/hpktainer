@@ -24,11 +24,16 @@ echo "Cluster Setup:"
 echo "  Controller Node: $CONTROLLER_NODE ($CONTROLLER_IP)"
 echo "  Nodes: ${NODES[@]}"
 
+# Clean up stale config files (but keep images for dev mode)
+echo "Cleaning up stale configuration in ~/.hpk..."
+rm -f $HOME/.hpk/kubeconfig $HOME/.hpk/node-token $HOME/.hpk/kubelet.crt $HOME/.hpk/kubelet.key
+
 # Start Controller Bubble
 echo "Starting Controller on $CONTROLLER_NODE..."
 export HPK_ROLE="controller"
-export CONTROLLER_IP=$CONTROLLER_IP 
-srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./scripts/hpk-bubble.sh 1 &
+export CONTROLLER_IP=$CONTROLLER_IP
+export HPK_DEV=${HPK_DEV:-0}
+srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./hpk-bubble.sh 1 &
 
 # Wait for Controller initialization
 echo "Waiting for Controller initialization..."
@@ -43,7 +48,8 @@ for ((i=1; i<NUM_NODES; i++)); do
     (
         export HPK_ROLE="node"
         export CONTROLLER_IP=$CONTROLLER_IP
-        srun --nodes=1 -w $NODE --exclusive ./scripts/hpk-bubble.sh $BUBBLE_ID
+        export HPK_DEV=${HPK_DEV:-0}
+        srun --nodes=1 -w $NODE --exclusive ./hpk-bubble.sh $BUBBLE_ID
     ) &
     
     ((BUBBLE_ID++))

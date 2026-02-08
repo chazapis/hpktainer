@@ -2,16 +2,17 @@
 
 HPK allows HPC users to run their own private Kubernetes "mini Cloud" on a typical HPC cluster and then issue commands to it using Kubernetes-native tools.
 
-To deploy, simply run:
+To deploy, copy the `scripts/` folder contents to your HPC account under `~/hpk/` and run:
 
 ```bash
-sbatch --nodes=3 scripts/hpk.slurm
+cd hpk
+sbatch --nodes=3 hpk.slurm
 ```
 
 Then configure and use `kubectl`:
 
 ```bash
-export KUBECONFIG=${HOME}/.hpk/kubernetes/admin.conf
+export KUBECONFIG=${HOME}/.hpk/kubeconfig
 kubectl get nodes
 ```
 
@@ -73,7 +74,7 @@ REGISTRY=myregistry.io/user make
 
 *Note for developers: You can also build the binaries locally for testing purposes using `make binaries`. These will be placed in `bin/`.*
 
-## Evaluating locally
+## Evaluating Locally
 
 You can test the setup locally using the provided Vagrant environment, which simulates a multi-node cluster using VMs.
 
@@ -88,22 +89,44 @@ vagrant reload # Required to apply security settings (AppArmor disable)
 
 The VMs use mDNS for networking and are accessible as `controller.local` and `node.local`.
 
-### 2. Upload Scripts
-Upload the project scripts to the controller node. Since the repository structure is needed, upload the entire directory:
+### 2. Deploy Scripts and Images
+
+**Option A: For production testing (using published images)**
+
+Upload the project scripts to the controller node:
 
 ```bash
 # From the repository root on your host
-scp -r -o StrictHostKeyChecking=no scripts vagrant@controller.local:~/scripts # (password is 'vagrant')
+ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/hpk" # Password is 'vagrant'
+scp -r -o StrictHostKeyChecking=no scripts/* vagrant@controller.local:~/hpk/ # Password is 'vagrant'
 ```
+
+**Option B: For development (using local images)**
+
+For rapid iteration during development, build and deploy images directly to the VMs:
+
+```bash
+make develop
+```
+
+This will:
+1. Build all images locally for your current architecture
+2. Export them as `.tar` files
+3. Copy them to both VMs at `~/.hpk/images/`
+4. Copy the `scripts/` directory to the controller at `~/hpk/`
+5. Remove old `.sif` files to ensure fresh builds are used
+
+To use the local images, set `HPK_DEV=1` before running the cluster (see step 3).
 
 ### 3. Run the Cluster
 Connect to the controller and submit the Slurm job:
 
 ```bash
-ssh -o StrictHostKeyChecking=no vagrant@controller.local # (password is 'vagrant')
+ssh -o StrictHostKeyChecking=no vagrant@controller.local # Password is 'vagrant'
 
-# Ensure images are available (or build/pull them if relevant in your env)
-sbatch --nodes=2 scripts/hpk.slurm
+export HPK_DEV=1 # If using development mode/local images
+cd ~/hpk
+sbatch --nodes=2 hpk.slurm
 ```
 
 This will launch one controller bubble and one node bubble on the Vagrant VMs.

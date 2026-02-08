@@ -35,7 +35,30 @@ mkdir -p $HOME/.hpk
 echo "Starting Bubble $NAME..."
 echo "  CIDR: $CIDR"
 echo "  Host IP: $HOST_IP_DETECTED"
-echo "  Etcd IP: $CONTROLLER_IP"
+echo "  Controller IP: $CONTROLLER_IP"
+
+# Determine image source
+if [ "${HPK_DEV:-0}" = "1" ]; then
+    echo "  Development mode: using local images"
+    IMAGE_DIR="$HOME/.hpk/images"
+    IMAGE_TAR="$IMAGE_DIR/hpk-bubble.tar"
+    IMAGE_SIF="$IMAGE_DIR/hpk-bubble.sif"
+    
+    # Convert tar to sif if not already done
+    if [ ! -f "$IMAGE_SIF" ] && [ -f "$IMAGE_TAR" ]; then
+        echo "  Converting $IMAGE_TAR to $IMAGE_SIF..."
+        apptainer build "$IMAGE_SIF" "docker-archive://$IMAGE_TAR"
+    fi
+    
+    if [ ! -f "$IMAGE_SIF" ]; then
+        echo "Error: $IMAGE_SIF not found. Run 'make develop' first."
+        exit 1
+    fi
+    
+    BUBBLE_IMAGE="$IMAGE_SIF"
+else
+    BUBBLE_IMAGE="docker://docker.io/chazapis/hpk-bubble:latest"
+fi
 
 # Pass IPs as env variables
 apptainer instance run \
@@ -50,7 +73,8 @@ apptainer instance run \
 	--bind $HOME/.hpk:/var/lib/hpk \
 	--env HOST_IP=$HOST_IP_DETECTED \
 	--env CONTROLLER_IP=$CONTROLLER_IP \
-	docker://docker.io/chazapis/hpk-bubble:latest \
+	--env HPK_DEV=${HPK_DEV:-0} \
+	$BUBBLE_IMAGE \
 	$NAME
 PID=$(apptainer instance list -j $NAME | jq -r '.instances[] | .pid')
 
