@@ -11,8 +11,8 @@ NS_ADDR=$CIDR_PREFIX.100
 
 # Detect Host IP (first non-loopback)
 HOST_IP_DETECTED=$(ip route get 1 | awk '{print $7; exit}')
-# Use provided ETCD_IP or default to detected host IP
-ETCD_IP=${ETCD_IP:-$HOST_IP_DETECTED}
+# Use provided CONTROLLER_IP or default to detected host IP
+CONTROLLER_IP=${CONTROLLER_IP:-$HOST_IP_DETECTED}
 
 cleanup() {
 	echo "Cleaning up..."
@@ -35,7 +35,7 @@ mkdir -p $HOME/.hpk
 echo "Starting Bubble $NAME..."
 echo "  CIDR: $CIDR"
 echo "  Host IP: $HOST_IP_DETECTED"
-echo "  Etcd IP: $ETCD_IP"
+echo "  Etcd IP: $CONTROLLER_IP"
 
 # Pass IPs as env variables
 apptainer instance run \
@@ -49,7 +49,7 @@ apptainer instance run \
 	--bind $RESOLV_CONF:/etc/resolv.conf \
 	--bind $HOME/.hpk:/var/lib/hpk \
 	--env HOST_IP=$HOST_IP_DETECTED \
-	--env ETCD_IP=$ETCD_IP \
+	--env CONTROLLER_IP=$CONTROLLER_IP \
 	docker://docker.io/chazapis/hpk-bubble:latest \
 	$NAME
 PID=$(apptainer instance list -j $NAME | jq -r '.instances[] | .pid')

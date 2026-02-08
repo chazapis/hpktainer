@@ -27,7 +27,7 @@ echo "  Nodes: ${NODES[@]}"
 # Start Controller Bubble
 echo "Starting Controller on $CONTROLLER_NODE..."
 export HPK_ROLE="controller"
-export ETCD_IP=$CONTROLLER_IP 
+export CONTROLLER_IP=$CONTROLLER_IP 
 srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./scripts/hpk-bubble.sh 1 &
 
 # Wait for Controller initialization
@@ -42,7 +42,7 @@ for ((i=1; i<NUM_NODES; i++)); do
     
     (
         export HPK_ROLE="node"
-        export ETCD_IP=$CONTROLLER_IP
+        export CONTROLLER_IP=$CONTROLLER_IP
         srun --nodes=1 -w $NODE --exclusive ./scripts/hpk-bubble.sh $BUBBLE_ID
     ) &
     

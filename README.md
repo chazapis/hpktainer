@@ -93,7 +93,7 @@ Upload the project scripts to the controller node. Since the repository structur
 
 ```bash
 # From the repository root on your host
-scp -r -o StrictHostKeyChecking=no . vagrant@controller.local:~/hpk # (password is 'vagrant')
+scp -r -o StrictHostKeyChecking=no scripts vagrant@controller.local:~/scripts # (password is 'vagrant')
 ```
 
 ### 3. Run the Cluster
@@ -102,7 +102,6 @@ Connect to the controller and submit the Slurm job:
 ```bash
 ssh -o StrictHostKeyChecking=no vagrant@controller.local # (password is 'vagrant')
 
-cd hpk
 # Ensure images are available (or build/pull them if relevant in your env)
 sbatch --nodes=2 scripts/hpk.slurm
 ```

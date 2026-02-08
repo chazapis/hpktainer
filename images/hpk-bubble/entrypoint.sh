@@ -2,10 +2,10 @@
 
 # Default values if not provided
 HOST_IP=${HOST_IP:-$(ip route get 1 | awk '{print $7; exit}')}
-ETCD_IP=${ETCD_IP:-$HOST_IP}
+CONTROLLER_IP=${CONTROLLER_IP:-$HOST_IP}
 
 echo "Starting Flannel..."
-echo "  Etcd Endpoint: http://${ETCD_IP}:2379"
+echo "  Etcd Endpoint: http://${CONTROLLER_IP}:2379"
 echo "  Public IP:     ${HOST_IP}"
 echo "  Interface:     tap0"
 echo "  Role:          ${HPK_ROLE}"
@@ -49,10 +49,10 @@ if [ "$HPK_ROLE" = "controller" ]; then
 fi
 
 # Start flanneld
-# Connecting to ETCD_IP (which is host IP of controller, or localhost if controller)
-# Simplest: If Controller, use localhost for Flannel. If Node, use ETCD_IP.
+# Connecting to CONTROLLER_IP (which is host IP of controller, or localhost if controller)
+# Simplest: If Controller, use localhost for Flannel. If Node, use CONTROLLER_IP.
 
-FLANNEL_ETCD="http://${ETCD_IP}:2379"
+FLANNEL_ETCD="http://${CONTROLLER_IP}:2379"
 if [ "$HPK_ROLE" = "controller" ]; then
     FLANNEL_ETCD="http://127.0.0.1:2379"
 fi
@@ -71,36 +71,87 @@ echo "Flannel started with PID $FLANNEL_PID"
 if [ "$HPK_ROLE" = "controller" ]; then
     echo "Starting K3s Server..."
     k3s server \
+      --advertise-address ${HOST_IP} \
+      --tls-san ${HOST_IP} \
       --disable-agent \
-      --disable scheduler \
-      --disable coredns \
       --disable servicelb \
       --disable traefik \
       --disable local-storage \
       --disable metrics-server \
       --disable-cloud-controller \
       --write-kubeconfig-mode 777 \
-      --bind-address $(ip addr show tap0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1) \
-      --node-ip=$(ip addr show tap0 | grep "inet\b" | awk '{print $2}' | cut -d/ -f1) \
-      --advertise-address ${HOST_IP} \
-      --tls-san ${HOST_IP} \
-      --write-kubeconfig /var/lib/hpk/admin.conf \
       >> /var/log/k3s.log 2>&1 &
+    
+    # Wait for K3s to create kubeconfig and node-token
+    echo "Waiting for K3s to initialize..."
+    while [ ! -f /etc/rancher/k3s/k3s.yaml ]; do
+        sleep 1
+    done
+    while [ ! -f /var/lib/rancher/k3s/server/node-token ]; do
+        sleep 1
+    done
+    
+    # Copy kubeconfig and node-token to shared directory
+    echo "Copying kubeconfig and node-token to /var/lib/hpk..."
+    cp /etc/rancher/k3s/k3s.yaml /var/lib/hpk/kubeconfig
+    cp /var/lib/rancher/k3s/server/node-token /var/lib/hpk/node-token
+    chmod 644 /var/lib/hpk/kubeconfig /var/lib/hpk/node-token
+    
+    # Generate webhook certificate for hpk-kubelet
+    echo "Generating webhook certificate..."
+    cat >kubelet.cnf <<EOF
+[req]
+req_extensions = v3_req
+distinguished_name = req_distinguished_name
+
+[req_distinguished_name]
+
+[v3_req]
+basicConstraints = CA:FALSE
+keyUsage = digitalSignature, keyEncipherment
+extendedKeyUsage = serverAuth, clientAuth
+subjectAltName = @alt_names
+
+[alt_names]
+IP.1 = 127.0.0.1
+IP.2 = ${HOST_IP}
+EOF
+    TLS_PATH=/var/lib/rancher/k3s/server/tls
+    if [ ! -f kubelet.key ]; then openssl genrsa -out kubelet.key 2048; fi
+    openssl req -new -key kubelet.key -subj "/CN=hpk-kubelet" \
+      -out kubelet.csr -config kubelet.cnf
+    openssl x509 -req -days 365 -set_serial 01 \
+      -CA ${TLS_PATH}/server-ca.crt -CAkey ${TLS_PATH}/server-ca.key \
+      -in kubelet.csr -out kubelet.crt \
+      -extfile kubelet.cnf -extensions v3_req
+    
+    # Copy certificates to shared directory
+    echo "Copying certificates to /var/lib/hpk..."
+    cp kubelet.crt /var/lib/hpk/
+    cp kubelet.key /var/lib/hpk/
+    chmod 644 /var/lib/hpk/kubelet.crt /var/lib/hpk/kubelet.key
 fi
 
-echo "Starting hpk-kubelet..."
-
-# Wait for kubeconfig (Controller creates it, Workers wait for it)
-echo "Waiting for /var/lib/hpk/admin.conf..."
-while [ ! -f /var/lib/hpk/admin.conf ]; do
+# Wait for kubeconfig and node-token (Controller creates them, Nodes wait for them)
+echo "Waiting for /var/lib/hpk/kubeconfig and /var/lib/hpk/node-token..."
+while [ ! -f /var/lib/hpk/kubeconfig ] || [ ! -f /var/lib/hpk/node-token ]; do
   sleep 1
 done
 
-# Start hpk-kubelet
+# Wait for certificates (Controller creates them, Nodes wait for them)
+echo "Waiting for /var/lib/hpk/kubelet.crt and /var/lib/hpk/kubelet.key..."
+while [ ! -f /var/lib/hpk/kubelet.crt ] || [ ! -f /var/lib/hpk/kubelet.key ]; do
+  sleep 1
+done
+
+echo "Starting hpk-kubelet..."
 # Using --run-slurm=false to run locally
 # Using --apptainer=hpktainer to use our networking wrapper
+KUBECONFIG=/var/lib/hpk/kubeconfig \
+APISERVER_KEY_LOCATION=/var/lib/hpk/kubelet.key \
+APISERVER_CERT_LOCATION=/var/lib/hpk/kubelet.crt \
+VKUBELET_ADDRESS=${HOST_IP} \
 hpk-kubelet \
-  --kubeconfig=/var/lib/hpk/admin.conf \
   --run-slurm=false \
   --apptainer=hpktainer \
   --nodename=$(hostname) \
