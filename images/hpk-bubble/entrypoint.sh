@@ -144,6 +144,13 @@ while [ ! -f /var/lib/hpk/kubelet.crt ] || [ ! -f /var/lib/hpk/kubelet.key ]; do
   sleep 1
 done
 
+# Wait for kube-dns service (Controller creates it via K3s, Nodes wait for it)
+echo "Waiting for kube-dns service..."
+export KUBECONFIG=/var/lib/hpk/kubeconfig
+while ! k3s kubectl get service -n kube-system kube-dns >/dev/null 2>&1; do
+  sleep 1
+done
+
 echo "Starting hpk-kubelet..."
 # Using --run-slurm=false to run locally
 # Using --apptainer=hpktainer to use our networking wrapper

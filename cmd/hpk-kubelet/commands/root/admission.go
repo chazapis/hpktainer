@@ -68,7 +68,7 @@ func StartAPIServer(c Opts, virtualk8s *provider.VirtualK8S) {
 		}
 	}()
 
-	DefaultLogger.Info("KubeWebhooks are ready",
+	DefaultLogger.Info("HTTPS server is ready",
 		"Address", advertisedAddr,
 		"cert", c.K8sAPICertFilepath,
 		"key", c.K8sAPIKeyFilepath,

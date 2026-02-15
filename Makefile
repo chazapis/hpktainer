@@ -88,8 +88,6 @@ develop:
 	
 	@echo "Exporting images to tar files..."
 	@mkdir -p /tmp/hpk-images
-	docker save -o /tmp/hpk-images/hpk-builder.tar $(REGISTRY)/hpk-builder:latest
-	docker save -o /tmp/hpk-images/hpktainer-base.tar $(REGISTRY)/hpktainer-base:latest
 	docker save -o /tmp/hpk-images/hpk-bubble.tar $(REGISTRY)/hpk-bubble:latest
 	docker save -o /tmp/hpk-images/hpk-pause.tar $(REGISTRY)/hpk-pause:latest
 	

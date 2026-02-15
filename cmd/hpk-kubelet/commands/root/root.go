@@ -121,6 +121,14 @@ func runRootCommand(ctx context.Context, c Opts) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
+	defer func() {
+		if r := recover(); r != nil {
+			DefaultLogger.Error(fmt.Errorf("%v", r), "Recovered from panic in runRootCommand")
+		}
+	}()
+
+	DefaultLogger.Info("Starting runRootCommand...")
+
 	/*---------------------------------------------------
 	 * Setup a client to Kubernetes API
 	 *---------------------------------------------------*/
@@ -163,20 +171,21 @@ func runRootCommand(ctx context.Context, c Opts) error {
 	 * Discover Kubernetes DNS server
 	 *---------------------------------------------------*/
 	{
-		dnsEndpoint, err := compute.K8SClientset.CoreV1().Endpoints("kube-system").Get(ctx, "kube-dns", metav1.GetOptions{})
+		DefaultLogger.Info("Discovering KubeDNS Service...")
+
+		// In a self-hosted setup (where this Kubelet runs CoreDNS), we must use the
+		// Service IP (ClusterIP) rather than waiting for Endpoints.
+		// Endpoints require the Pod to be running, which requires this Kubelet to be Ready.
+		svc, err := compute.K8SClientset.CoreV1().Services("kube-system").Get(ctx, "kube-dns", metav1.GetOptions{})
 		if err != nil && !errors.Is(err, context.Canceled) {
-			return errors.Wrapf(err, "unable to discover dns server")
+			return errors.Wrapf(err, "unable to discover kube-dns service")
 		}
 
-		if len(dnsEndpoint.Subsets) == 0 {
-			return errors.Wrapf(err, "empty dns subsets")
+		if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == "None" {
+			return errors.Errorf("kube-dns service has no ClusterIP")
 		}
 
-		if len(dnsEndpoint.Subsets[0].Addresses) == 0 {
-			return errors.Wrapf(err, "empty dns addresses")
-		}
-
-		compute.Environment.KubeDNS = dnsEndpoint.Subsets[0].Addresses[0].IP
+		compute.Environment.KubeDNS = svc.Spec.ClusterIP
 
 		DefaultLogger.Info("KubeDNS client is ready",
 			"address", compute.Environment.KubeDNS,

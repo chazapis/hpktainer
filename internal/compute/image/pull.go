@@ -20,10 +20,22 @@ import (
 
 	"hpk/internal/compute"
 	"hpk/pkg/process"
+
 	"github.com/pkg/errors"
 )
 
 func Pull(imageDir string, transport Transport, imageName string) (*Image, error) {
+	// If the image name is a path, just check if it exists and return it.
+	if strings.HasPrefix(imageName, "/") {
+		if _, err := os.Stat(imageName); err != nil {
+			return nil, errors.Wrapf(err, "local image '%s' not found", imageName)
+		}
+
+		return &Image{
+			Filepath: imageName,
+		}, nil
+	}
+
 	// Remove the digest form the image, because Singularity fails with
 	// "Docker references with both a tag and digest are currently not supported".
 	imageName = strings.Split(imageName, "@")[0]
@@ -39,10 +51,11 @@ func Pull(imageDir string, transport Transport, imageName string) (*Image, error
 			return img, nil
 		}
 
-		return nil, errors.Errorf("imagePath '%s' is not a regular fie", img.Filepath)
+		return nil, errors.Errorf("imagePath '%s' is not a regular file", img.Filepath)
 	}
 
 	// otherwise, download a fresh copy
+	compute.DefaultLogger.Info(" * Downloading image...", "image", imageName, "dir", imageDir)
 	if _, err := process.Execute(compute.Environment.ApptainerBin, "pull", "--dir", imageDir, transport.Wrap(imageName)); err != nil {
 		return nil, errors.Wrapf(err, "downloading has failed")
 	}
