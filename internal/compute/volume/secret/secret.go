@@ -23,8 +23,9 @@ import (
 	"hpk/internal/compute"
 	"hpk/internal/compute/volume"
 	"hpk/internal/compute/volume/util"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -61,7 +62,7 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 		},
 	); err != nil { // error checking
 		if !(k8errors.IsNotFound(err) && optional) {
-			return errors.Wrapf(err, "Couldn't get secret '%s'", key)
+			return fmt.Errorf("Couldn't get secret '%s': %w", key, err)
 		}
 
 		secret = corev1.Secret{
@@ -90,11 +91,11 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 
 	writer, err := util.NewAtomicWriter(dir, writerContext)
 	if err != nil {
-		return errors.Wrapf(err, "Error creating atomic writer")
+		return fmt.Errorf("Error creating atomic writer: %w", err)
 	}
 
 	if err := writer.Write(payload); err != nil {
-		return errors.Wrapf(err, "Error writing payload to dir")
+		return fmt.Errorf("Error writing payload to dir: %w", err)
 	}
 
 	// fixme: add permissions
@@ -105,7 +106,7 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 // MakePayload function is exported so that it can be called from the projection volume driver
 func MakePayload(mappings []corev1.KeyToPath, secret *corev1.Secret, defaultMode *int32, optional bool) (map[string]util.FileProjection, error) {
 	if defaultMode == nil {
-		return nil, errors.Errorf("no defaultMode used, not even the default value for it")
+		return nil, fmt.Errorf("no defaultMode used, not even the default value for it")
 	}
 
 	payload := make(map[string]util.FileProjection, len(secret.Data))
@@ -125,7 +126,7 @@ func MakePayload(mappings []corev1.KeyToPath, secret *corev1.Secret, defaultMode
 					continue
 				}
 
-				return nil, errors.Errorf("references non-existent secret key: %s", ktp.Key)
+				return nil, fmt.Errorf("references non-existent secret key: %s", ktp.Key)
 			}
 
 			fileProjection.Data = content

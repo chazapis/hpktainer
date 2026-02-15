@@ -24,7 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
+	"errors"
+
 	"github.com/sirupsen/logrus"
 )
 

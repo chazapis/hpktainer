@@ -16,10 +16,11 @@
 package slurm
 
 import (
+	"fmt"
 	"strings"
 
+	"errors"
 	"hpk/pkg/process"
-	"github.com/pkg/errors"
 )
 
 var Signal = "--signal=TERM"
@@ -56,7 +57,7 @@ func CancelJob(args string) (string, error) {
 			return outStr, ErrRety
 		}
 
-		return string(out), errors.Wrap(err, "Could not run scancel")
+		return string(out), fmt.Errorf("Could not run scancel: %w", err)
 	}
 
 	return string(out), nil
@@ -80,7 +81,7 @@ func KillProcessByPID(pid string) (string, error) {
 			return outStr, ErrInvalidJob
 		}
 
-		return string(out), errors.Wrap(err, "Could not kill process")
+		return string(out), fmt.Errorf("Could not kill process: %w", err)
 	}
 
 	return string(out), nil

@@ -18,8 +18,9 @@ import (
 	"fmt"
 	"regexp"
 
+	"errors"
 	"hpk/pkg/crdtools"
-	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
@@ -56,7 +57,7 @@ func PodError(pod *corev1.Pod, reason string, msgFormat string, msgArgs ...any) 
 }
 
 func SystemPanic(err error, errFormat string, errArgs ...any) {
-	werr := errors.Wrapf(err, errFormat, errArgs...)
+	werr := fmt.Errorf(errFormat+": %w", append(errArgs, err)...)
 
 	DefaultLogger.Error(werr, "SystemERROR")
 

@@ -15,12 +15,12 @@
 package endpoint
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
 
-	"github.com/pkg/errors"
 	"k8s.io/apimachinery/pkg/types"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 )
@@ -99,7 +99,7 @@ func (p HPKPath) WalkPodDirectories(f WalkPodFunc) error {
 	return filepath.WalkDir(p.String(), func(path string, info os.DirEntry, err error) error {
 		// check for traversing errors
 		if err != nil {
-			return errors.Wrapf(err, "Pod traversal error")
+			return fmt.Errorf("Pod traversal error: %w", err)
 		}
 
 		// skip files

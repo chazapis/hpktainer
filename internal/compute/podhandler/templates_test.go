@@ -15,6 +15,7 @@
 package podhandler_test
 
 import (
+	"fmt"
 	"log"
 	"os"
 	"strings"
@@ -22,7 +23,7 @@ import (
 
 	"hpk/internal/compute"
 	PodHandler "hpk/internal/compute/podhandler"
-	"github.com/pkg/errors"
+
 	"k8s.io/apimachinery/pkg/types"
 )
 
@@ -217,7 +218,7 @@ func TestConstructorSyntax(t *testing.T) {
 
 		if err := submitTpl.Execute(&sbatchScript, tt.fields); err != nil {
 			/*-- since both the template and fields are internal to the code, the evaluation should always succeed	--*/
-			panic(errors.Wrapf(err, "failed to evaluate sbatch"))
+			panic(fmt.Errorf("failed to evaluate sbatch: %w", err))
 		}
 
 		/*---------------------------------------------------

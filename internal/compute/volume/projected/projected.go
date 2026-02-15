@@ -25,8 +25,8 @@ import (
 	"hpk/internal/compute/volume/downwardapi"
 	"hpk/internal/compute/volume/secret"
 	"hpk/internal/compute/volume/util"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	authenticationv1 "k8s.io/api/authentication/v1"
 	corev1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
@@ -50,7 +50,7 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 	podKey := types.NamespacedName{Namespace: b.Pod.GetNamespace(), Name: b.Pod.GetName()}
 
 	if b.Volume.Projected.DefaultMode == nil {
-		return errors.Errorf("no defaultMode used, not even the default value for it")
+		return fmt.Errorf("no defaultMode used, not even the default value for it")
 	}
 
 	var data map[string]util.FileProjection
@@ -63,7 +63,7 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 			return errCollect
 		},
 	); err != nil { // error checking
-		return errors.Wrapf(err, "error preparing data for project volume. volume:'%s' pod:'%s'", b.Volume.Name, podKey)
+		return fmt.Errorf("error preparing data for project volume. volume:'%s' pod:'%s': %w", b.Volume.Name, podKey, err)
 	}
 
 	/*---------------------------------------------------
@@ -76,12 +76,12 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context, dir string) error {
 	writerContext := fmt.Sprintf("pod %s volume %v", podKey, b.Volume.Name)
 	writer, err := util.NewAtomicWriter(dir, writerContext)
 	if err != nil {
-		return errors.Wrapf(err, "Error creating atomic writer")
+		return fmt.Errorf("Error creating atomic writer: %w", err)
 	}
 
 	err = writer.Write(data)
 	if err != nil {
-		return errors.Wrapf(err, "Error writing payload to dir")
+		return fmt.Errorf("Error writing payload to dir: %w", err)
 	}
 
 	// fixme: add permissions

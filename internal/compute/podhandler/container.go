@@ -26,7 +26,7 @@ import (
 	"hpk/internal/compute/slurm"
 	kubecontainer "hpk/pkg/container"
 	"hpk/pkg/hostutil"
-	"github.com/pkg/errors"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	mounter "k8s.io/utils/mount"
@@ -86,7 +86,7 @@ func (h *PodHandler) buildContainer(container *corev1.Container, containerStatus
 
 		if subPath != "" {
 			if filepath.IsAbs(subPath) {
-				return Container{}, errors.Errorf("error SubPath '%s' must not be an absolute path", subPath)
+				return Container{}, fmt.Errorf("error SubPath '%s' must not be an absolute path", subPath)
 			}
 
 			subPathFile := filepath.Join(hostPath, subPath)

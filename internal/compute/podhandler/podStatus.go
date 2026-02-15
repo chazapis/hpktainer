@@ -24,8 +24,8 @@ import (
 
 	"hpk/internal/compute"
 	"hpk/pkg/crdtools"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -214,7 +214,7 @@ func UpdateStatusFromRuntime(pod *corev1.Pod) {
 		}
 	}
 
-	panic(errors.Errorf(`unhandled lifecycle conditions.
+	panic(fmt.Errorf(`unhandled lifecycle conditions.
 			current: '%v',
 			totalJobs: '%d',
 			jobs: '%s',

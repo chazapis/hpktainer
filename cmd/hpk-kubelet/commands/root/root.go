@@ -41,8 +41,9 @@ import (
 
 	"hpk/internal/provider"
 
+	"errors"
+
 	"github.com/dimiro1/banner"
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/virtual-kubelet/virtual-kubelet/node"
 	corev1 "k8s.io/api/core/v1"
@@ -82,15 +83,15 @@ func NewCommand(ctx context.Context, name string, c Opts) *cobra.Command {
 			}
 
 			if c.KubeletAddress == "" {
-				merr = multierror.Append(merr, errors.Errorf("empty kubelet address. Use flags or set %s", EnvKubeletAddress))
+				merr = multierror.Append(merr, fmt.Errorf("empty kubelet address. Use flags or set %s", EnvKubeletAddress))
 			}
 
 			if c.K8sAPICertFilepath == "" {
-				merr = multierror.Append(merr, errors.Errorf("empty certificate path. Use flags or set %s", EnvAPICertLocation))
+				merr = multierror.Append(merr, fmt.Errorf("empty certificate path. Use flags or set %s", EnvAPICertLocation))
 			}
 
 			if c.K8sAPIKeyFilepath == "" {
-				merr = multierror.Append(merr, errors.Errorf("empty key path. Use flags or set %s", EnvAPIKeyLocation))
+				merr = multierror.Append(merr, fmt.Errorf("empty key path. Use flags or set %s", EnvAPIKeyLocation))
 			}
 
 			if merr.ErrorOrNil() != nil {
@@ -134,18 +135,18 @@ func runRootCommand(ctx context.Context, c Opts) error {
 	 *---------------------------------------------------*/
 	restConfig, err := config.GetConfig()
 	if err != nil {
-		return errors.Wrapf(err, "unable to get kubeconfig")
+		return fmt.Errorf("unable to get kubeconfig: %w", err)
 	}
 
 	{
 		k8sclientset, err := kubernetes.NewForConfig(restConfig)
 		if err != nil {
-			return errors.Wrapf(err, "unable to start kubernetes k8sclientset")
+			return fmt.Errorf("unable to start kubernetes k8sclientset: %w", err)
 		}
 
 		k8sclient, err := client.New(restConfig, client.Options{})
 		if err != nil {
-			return errors.Wrapf(err, "unable to start kubernetes client")
+			return fmt.Errorf("unable to start kubernetes client: %w", err)
 		}
 
 		compute.K8SClient = k8sclient
@@ -157,7 +158,7 @@ func runRootCommand(ctx context.Context, c Opts) error {
 
 		kubemaster, err := url.Parse(restConfig.Host)
 		if err != nil {
-			return errors.Wrapf(err, "failed to extract hostname from url '%s'", restConfig.Host)
+			return fmt.Errorf("failed to extract hostname from url '%s': %w", restConfig.Host, err)
 		}
 		compute.Environment.KubeMasterHost = kubemaster.Hostname()
 
@@ -178,11 +179,11 @@ func runRootCommand(ctx context.Context, c Opts) error {
 		// Endpoints require the Pod to be running, which requires this Kubelet to be Ready.
 		svc, err := compute.K8SClientset.CoreV1().Services("kube-system").Get(ctx, "kube-dns", metav1.GetOptions{})
 		if err != nil && !errors.Is(err, context.Canceled) {
-			return errors.Wrapf(err, "unable to discover kube-dns service")
+			return fmt.Errorf("unable to discover kube-dns service: %w", err)
 		}
 
 		if svc.Spec.ClusterIP == "" || svc.Spec.ClusterIP == "None" {
-			return errors.Errorf("kube-dns service has no ClusterIP")
+			return fmt.Errorf("kube-dns service has no ClusterIP")
 		}
 
 		compute.Environment.KubeDNS = svc.Spec.ClusterIP
@@ -221,7 +222,7 @@ func runRootCommand(ctx context.Context, c Opts) error {
 	{
 		podInformer, secretInformer, configMapInformer, serviceInformer, _, err := AddInformers(ctx, c, compute.K8SClientset)
 		if err != nil {
-			return errors.Wrapf(err, "failed to add informers")
+			return fmt.Errorf("failed to add informers: %w", err)
 		}
 
 		DefaultLogger.Info("Informers are ready",
@@ -336,7 +337,7 @@ func runRootCommand(ctx context.Context, c Opts) error {
 		// If we got here, set Node condition Ready.
 		setNodeReady(virtualNode)
 		if err := np.UpdateStatus(ctx, virtualNode); err != nil {
-			return errors.Wrap(err, "error marking the node as ready")
+			return fmt.Errorf("error marking the node as ready: %w", err)
 		}
 
 		DefaultLogger.Info("Node Controller is Ready")

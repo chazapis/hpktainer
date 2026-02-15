@@ -16,6 +16,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -24,7 +25,7 @@ import (
 
 	"hpk/cmd/hpk-kubelet/commands"
 	"hpk/cmd/hpk-kubelet/commands/root"
-	"github.com/pkg/errors"
+
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/virtual-kubelet/virtual-kubelet/log"
@@ -98,7 +99,7 @@ func main() {
 		if logLevel != "" {
 			lvl, err := logrus.ParseLevel(logLevel)
 			if err != nil {
-				return errors.Wrap(err, "could not parse log level")
+				return fmt.Errorf("could not parse log level: %w", err)
 			}
 			logrus.SetLevel(lvl)
 		}
@@ -106,7 +107,7 @@ func main() {
 		return nil
 	}
 
-	if err := rootCmd.Execute(); err != nil && errors.Cause(err) != context.Canceled {
+	if err := rootCmd.Execute(); err != nil && !errors.Is(err, context.Canceled) {
 		log.G(ctx).Fatal(err)
 	}
 }

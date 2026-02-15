@@ -40,9 +40,10 @@ import (
 	"hpk/internal/compute"
 	"hpk/pkg/filenotify"
 
+	"errors"
+
 	"github.com/go-logr/logr"
 	"github.com/niemeyer/pretty"
-	"github.com/pkg/errors"
 	"github.com/virtual-kubelet/virtual-kubelet/errdefs"
 	vkapi "github.com/virtual-kubelet/virtual-kubelet/node/api"
 	corev1 "k8s.io/api/core/v1"
@@ -91,14 +92,14 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 	}
 
 	if err != nil {
-		return nil, errors.Wrapf(err, "add watcher on fsnotify failed")
+		return nil, fmt.Errorf("add watcher on fsnotify failed: %w", err)
 	}
 
 	/*---------------------------------------------------
 	 * Initialize HPK Environment
 	 *---------------------------------------------------*/
 	if err := runtime.Initialize(config.PauseImage); err != nil {
-		return nil, errors.Wrapf(err, "Failed to initiaze HPK paths '%s'", compute.HPK.String())
+		return nil, fmt.Errorf("Failed to initiaze HPK paths '%s': %w", compute.HPK.String(), err)
 	}
 
 	/*---------------------------------------------------
@@ -121,7 +122,7 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 
 		return nil
 	}); err != nil {
-		return nil, errors.Wrapf(err, "pod scanning has failed")
+		return nil, fmt.Errorf("pod scanning has failed: %w", err)
 	}
 
 	for _, path := range corruptedPods {
@@ -131,7 +132,7 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 		archivedNamespacePath := filepath.Dir(archivedPodPath)
 
 		if err := os.MkdirAll(archivedNamespacePath, endpoint.PodGlobalDirectoryPermissions); err != nil {
-			return nil, errors.Wrapf(err, "basepath '%s' error", archivedNamespacePath)
+			return nil, fmt.Errorf("basepath '%s' error: %w", archivedNamespacePath, err)
 		}
 
 		// move corrupted pod to the archived namespace.
@@ -142,7 +143,7 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 				archivedPodPath = fmt.Sprintf("%s-%d", archivedPodPath, time.Now().Second())
 				goto retry
 			}
-			return nil, errors.Wrapf(err, "moving error of corrupted pod")
+			return nil, fmt.Errorf("moving error of corrupted pod: %w", err)
 		}
 
 		logger.Info("Moved corrupted pod to archive",
@@ -158,7 +159,7 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 		// register the watcher
 		return watcher.Add(path.String())
 	}); err != nil {
-		return nil, errors.Wrapf(err, "failed to restore watchers")
+		return nil, fmt.Errorf("failed to restore watchers: %w", err)
 	}
 
 	return &VirtualK8S{
@@ -373,7 +374,7 @@ func (v *VirtualK8S) GetPods(ctx context.Context) ([]*corev1.Pod, error) {
 		var pod corev1.Pod
 
 		if err := json.Unmarshal(encodedPod, &pod); err != nil {
-			return errors.Wrapf(err, "cannot decode pod description file '%s'", path)
+			return fmt.Errorf("cannot decode pod description file '%s': %w", path, err)
 		}
 
 		/*-- return only the pods that are known to be running --*/
@@ -383,7 +384,7 @@ func (v *VirtualK8S) GetPods(ctx context.Context) ([]*corev1.Pod, error) {
 
 		return nil
 	}); err != nil {
-		return nil, errors.Wrapf(err, "failed to traverse pods")
+		return nil, fmt.Errorf("failed to traverse pods: %w", err)
 	}
 
 	return pods, nil
@@ -448,7 +449,7 @@ func (v *VirtualK8S) NotifyPods(ctx context.Context, f func(*corev1.Pod)) {
 					return
 				}
 
-				panic(errors.Wrapf(err, "fsnotify failed"))
+				panic(fmt.Errorf("fsnotify failed: %w", err))
 			}
 		}
 	}()
@@ -568,7 +569,7 @@ func (v *VirtualK8S) GetContainerLogs(ctx context.Context, namespace, podName, c
 				return io.NopCloser(bytes.NewReader([]byte{})), nil
 			}
 
-			return nil, errors.Wrapf(err, "unable to batch logs")
+			return nil, fmt.Errorf("unable to batch logs: %w", err)
 		}
 
 		return logs, nil
@@ -577,7 +578,7 @@ func (v *VirtualK8S) GetContainerLogs(ctx context.Context, namespace, podName, c
 	if opts.Tail > 0 {
 		logs, err := container.GetTailLog(logfilePath, opts.Tail)
 		if err != nil {
-			return nil, errors.Wrapf(err, "unable to batch logs")
+			return nil, fmt.Errorf("unable to batch logs: %w", err)
 		}
 
 		results := bytes.NewBuffer(nil)
@@ -632,7 +633,7 @@ func (v *VirtualK8S) RunInContainer(ctx context.Context, namespace, podName, con
 
 	exec, err := remotecommand.NewSPDYExecutor(v.InitConfig.RestConfig, "POST", req.URL())
 	if err != nil {
-		return errors.Wrapf(err, "could not make remote command")
+		return fmt.Errorf("could not make remote command: %w", err)
 	}
 
 	return exec.Stream(remotecommand.StreamOptions{

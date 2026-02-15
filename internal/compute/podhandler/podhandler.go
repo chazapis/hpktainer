@@ -31,8 +31,9 @@ import (
 	"hpk/pkg/filenotify"
 	"hpk/pkg/resources"
 
+	"errors"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/util/json"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -52,16 +53,16 @@ func LoadPodFromKey(podRef client.ObjectKey) (*corev1.Pod, error) {
 // LoadPodFromFile will read, decode, and return a Pod from a file.
 func LoadPodFromFile(filePath string) (*corev1.Pod, error) {
 	if filePath == "" {
-		return nil, errors.Errorf("file path not specified")
+		return nil, fmt.Errorf("file path not specified")
 	}
 
 	podDef, err := os.ReadFile(filePath)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to read file path %s", filePath)
+		return nil, fmt.Errorf("failed to read file path %s: %w", filePath, err)
 	}
 
 	if len(podDef) == 0 {
-		return nil, errors.Errorf("file was empty: %s", filePath)
+		return nil, fmt.Errorf("file was empty: %s", filePath)
 	}
 
 	var pod corev1.Pod
@@ -75,7 +76,7 @@ func LoadPodFromFile(filePath string) (*corev1.Pod, error) {
 
 func SavePodToFile(_ context.Context, pod *corev1.Pod) error {
 	if pod == nil {
-		return errors.Errorf("empty pod")
+		return fmt.Errorf("empty pod")
 	}
 
 	podRef := client.ObjectKeyFromObject(pod)
@@ -83,7 +84,7 @@ func SavePodToFile(_ context.Context, pod *corev1.Pod) error {
 
 	podDef, err := json.Marshal(pod)
 	if err != nil {
-		return errors.Wrapf(err, "failed encoding pod")
+		return fmt.Errorf("failed encoding pod: %w", err)
 	}
 
 	if err := os.WriteFile(filePath, podDef, endpoint.PodSpecJsonFilePermissions); err != nil {
@@ -310,7 +311,7 @@ func CreatePod(ctx context.Context, pod *corev1.Pod, watcher filenotify.FileWatc
 	for _, vol := range h.Pod.Spec.Volumes {
 		// h.Pod.Spec.Containers[0].VolumeMounts
 		if err := h.mountVolumeSource(ctx, vol); err != nil {
-			compute.PodError(pod, "VolumeError", err.Error())
+			compute.PodError(pod, "VolumeError", "%v", err)
 
 			return
 		}

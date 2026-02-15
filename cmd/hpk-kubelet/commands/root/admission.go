@@ -21,7 +21,8 @@ import (
 
 	"hpk/internal/provider"
 
-	"github.com/pkg/errors"
+	"errors"
+
 	"github.com/sirupsen/logrus"
 	"github.com/virtual-kubelet/virtual-kubelet/node/api"
 )

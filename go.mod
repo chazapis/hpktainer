@@ -13,7 +13,6 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/matishsiao/goInfo v0.0.0-20241216093258-66a9250504d6
 	github.com/niemeyer/pretty v0.0.0-20200227124842-a10e7caefd8e
-	github.com/pkg/errors v0.9.1
 	github.com/rs/zerolog v1.34.0
 	github.com/sirupsen/logrus v1.9.4
 	github.com/slok/kubewebhook/v2 v2.7.0
@@ -71,6 +70,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
+	github.com/pkg/errors v0.9.1 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/prometheus/client_golang v1.23.2 // indirect
 	github.com/prometheus/client_model v0.6.2 // indirect

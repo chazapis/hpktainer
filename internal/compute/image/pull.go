@@ -15,20 +15,19 @@
 package image
 
 import (
+	"fmt"
 	"os"
 	"strings"
 
 	"hpk/internal/compute"
 	"hpk/pkg/process"
-
-	"github.com/pkg/errors"
 )
 
 func Pull(imageDir string, transport Transport, imageName string) (*Image, error) {
 	// If the image name is a path, just check if it exists and return it.
 	if strings.HasPrefix(imageName, "/") {
 		if _, err := os.Stat(imageName); err != nil {
-			return nil, errors.Wrapf(err, "local image '%s' not found", imageName)
+			return nil, fmt.Errorf("local image '%s' not found: %w", imageName, err)
 		}
 
 		return &Image{
@@ -51,13 +50,13 @@ func Pull(imageDir string, transport Transport, imageName string) (*Image, error
 			return img, nil
 		}
 
-		return nil, errors.Errorf("imagePath '%s' is not a regular file", img.Filepath)
+		return nil, fmt.Errorf("imagePath '%s' is not a regular file", img.Filepath)
 	}
 
 	// otherwise, download a fresh copy
 	compute.DefaultLogger.Info(" * Downloading image...", "image", imageName, "dir", imageDir)
 	if _, err := process.Execute(compute.Environment.ApptainerBin, "pull", "--dir", imageDir, transport.Wrap(imageName)); err != nil {
-		return nil, errors.Wrapf(err, "downloading has failed")
+		return nil, fmt.Errorf("downloading has failed: %w", err)
 	}
 
 	compute.DefaultLogger.Info(" * Download completed", "image", imageName, "path", img.Filepath)

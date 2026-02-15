@@ -16,11 +16,13 @@ package podhandler
 
 import (
 	"context"
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"time"
 
+	"errors"
 	"hpk/internal/compute/endpoint"
 	"hpk/internal/compute/volume/configmap"
 	"hpk/internal/compute/volume/emptydir"
@@ -28,11 +30,12 @@ import (
 	"hpk/internal/compute/volume/projected"
 	"hpk/internal/compute/volume/secret"
 	"hpk/internal/compute/volume/util"
-	"github.com/pkg/errors"
+
 	mounter "k8s.io/utils/mount"
 
 	"hpk/internal/compute"
 	"hpk/pkg/fieldpath"
+
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	k8errors "k8s.io/apimachinery/pkg/api/errors"
@@ -102,7 +105,7 @@ func (h *PodHandler) mountVolumeSource(ctx context.Context, vol corev1.Volume) e
 				"dir", configMapDir,
 			)
 
-			return errors.Wrapf(err, "failed to mount ConfigMap '%s'", vol.Name)
+			return fmt.Errorf("failed to mount ConfigMap '%s': %w", vol.Name, err)
 		}
 
 		h.logger.Info("  * ConfigMap Volume is mounted", "name", vol.Name)
@@ -131,7 +134,7 @@ func (h *PodHandler) mountVolumeSource(ctx context.Context, vol corev1.Volume) e
 				"dir", secretDir,
 			)
 
-			return errors.Wrapf(err, "failed to mount Secret '%s'", vol.Name)
+			return fmt.Errorf("failed to mount Secret '%s': %w", vol.Name, err)
 		}
 
 		h.logger.Info("  * Secret Volume is mounted", "name", vol.Name)
@@ -160,7 +163,7 @@ func (h *PodHandler) mountVolumeSource(ctx context.Context, vol corev1.Volume) e
 			}
 
 			if !exists {
-				return errors.Errorf("HostPath '%s' does not exist", vol.VolumeSource.HostPath.Path)
+				return fmt.Errorf("HostPath '%s' does not exist", vol.VolumeSource.HostPath.Path)
 			}
 
 			// Empty string (default) is for backward compatibility,
@@ -216,7 +219,7 @@ func (h *PodHandler) mountVolumeSource(ctx context.Context, vol corev1.Volume) e
 		}
 
 		if err := mounter.SetUpAt(ctx, projectedDir); err != nil {
-			return errors.Wrapf(err, "failed to mount ProjectedVolume '%s'", vol.Name)
+			return fmt.Errorf("failed to mount ProjectedVolume '%s': %w", vol.Name, err)
 		}
 
 		return nil
@@ -239,7 +242,7 @@ func (h *PodHandler) DownwardAPIVolumeSource(ctx context.Context, vol corev1.Vol
 		itemPath := filepath.Join(downApiDir, item.Path)
 		value, err := fieldpath.ExtractFieldPathAsString(h.Pod, item.FieldRef.FieldPath)
 		if err != nil {
-			compute.PodError(h.Pod, compute.ReasonSpecError, err.Error())
+			compute.PodError(h.Pod, compute.ReasonSpecError, "%v", err)
 
 			return
 		}

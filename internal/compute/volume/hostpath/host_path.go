@@ -23,8 +23,8 @@ import (
 
 	"hpk/internal/compute/volume/util/validation"
 	"hpk/pkg/hostutil"
+
 	"github.com/go-logr/logr"
-	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
 )
 
@@ -42,7 +42,7 @@ func (b *VolumeMounter) SetUpAt(ctx context.Context) error {
 	source := b.Volume.HostPath
 
 	if err := validation.ValidatePathNoBacksteps(source.Path); err != nil {
-		return errors.Wrapf(err, "invalid HostPath '%s'", source.Path)
+		return fmt.Errorf("invalid HostPath '%s': %w", source.Path, err)
 	}
 
 	return checkType(source.Path, source.Type, hostutil.NewHostUtil())
