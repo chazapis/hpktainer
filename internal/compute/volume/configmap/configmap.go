@@ -147,15 +147,3 @@ func MakePayload(mappings []corev1.KeyToPath, configMap *corev1.ConfigMap, defau
 
 	return payload, nil
 }
-
-func totalBytes(configMap *corev1.ConfigMap) int {
-	totalSize := 0
-	for _, value := range configMap.Data {
-		totalSize += len(value)
-	}
-	for _, value := range configMap.BinaryData {
-		totalSize += len(value)
-	}
-
-	return totalSize
-}

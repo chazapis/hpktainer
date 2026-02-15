@@ -141,12 +141,3 @@ func MakePayload(mappings []corev1.KeyToPath, secret *corev1.Secret, defaultMode
 
 	return payload, nil
 }
-
-func totalSecretBytes(secret *corev1.Secret) int {
-	totalSize := 0
-	for _, bytes := range secret.Data {
-		totalSize += len(bytes)
-	}
-
-	return totalSize
-}

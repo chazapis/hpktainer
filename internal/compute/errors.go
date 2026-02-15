@@ -16,7 +16,6 @@ package compute
 
 import (
 	"fmt"
-	"regexp"
 
 	"errors"
 	"hpk/pkg/crdtools"
@@ -24,8 +23,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
-
-var escapeScripts = regexp.MustCompile(`(--[A-Za-z0-9\-]+=)(\$[{\(][A-Za-z0-9_]+[\)\}])`)
 
 var (
 	ReasonObjectNotFound      = "ObjectNotFound"
