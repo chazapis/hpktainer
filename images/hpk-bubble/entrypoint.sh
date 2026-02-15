@@ -159,11 +159,11 @@ KUBECONFIG=/var/lib/hpk/kubeconfig \
 APISERVER_KEY_LOCATION=/var/lib/hpk/kubelet.key \
 APISERVER_CERT_LOCATION=/var/lib/hpk/kubelet.crt \
 VKUBELET_ADDRESS=${HOST_IP} \
-PAUSE_IMAGE=${PAUSE_IMAGE} \
 hpk-kubelet \
   --run-slurm=false \
   --apptainer=hpktainer \
   --nodename=$(hostname) \
+  ${PAUSE_IMAGE:+--pause-image=$PAUSE_IMAGE} \
   >> /var/log/hpk-kubelet.log 2>&1 &
 
 # Keep the container running

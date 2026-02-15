@@ -30,6 +30,7 @@ import (
 	"hpk/internal/compute/slurm"
 	"hpk/pkg/filenotify"
 	"hpk/pkg/resources"
+
 	"github.com/go-logr/logr"
 	"github.com/pkg/errors"
 	corev1 "k8s.io/api/core/v1"
@@ -197,7 +198,7 @@ remove_pod:
 
 			// try to delete directory using the fakeroot from pause container.
 			out, err := runtime.DefaultPauseImage.FakerootExec(
-				[]string{"--mount", "type=bind,src=" + podDir.String() + ",dst=/pod"}, // mount the pod directory in singularity
+				[]string{"--mount", "type=bind,src=" + podDir.String() + ",dst=/pod"}, // mount the pod directory in apptainer
 				[]string{"rm", "-rf", "/pod/*"},                                       // remove the pod directory using fakeroot
 			)
 
@@ -381,9 +382,9 @@ func CreatePod(ctx context.Context, pod *corev1.Pod, watcher filenotify.FileWatc
 	/*---------------------------------------------------
 	 * Prepare Image for Pause Container
 	 *---------------------------------------------------*/
-	pauseImage, err := image.Pull(compute.HPK.ImageDir(), image.Docker, image.PauseImage)
+	pauseImage, err := image.Pull(compute.HPK.ImageDir(), image.Docker, compute.Environment.PauseImage)
 	if err != nil {
-		compute.SystemPanic(err, "ImagePull error. Image:%s", image.PauseImage)
+		compute.SystemPanic(err, "ImagePull error. Image:%s", compute.Environment.PauseImage)
 	}
 
 	/*---------------------------------------------------
@@ -421,7 +422,7 @@ func CreatePod(ctx context.Context, pod *corev1.Pod, watcher filenotify.FileWatc
 	pod.Annotations["stderrPath"] = h.podDirectory.StderrPath()
 	pod.Annotations["sysErrorFilePath"] = h.podDirectory.SysErrorFilePath()
 
-	pod.Annotations["PauseImage"] = image.PauseImage
+	pod.Annotations["PauseImage"] = compute.Environment.PauseImage
 
 	if err := scriptTemplate.Execute(&scriptFileContent, JobFields{
 		Pod:                h.podKey,
@@ -441,7 +442,7 @@ func CreatePod(ctx context.Context, pod *corev1.Pod, watcher filenotify.FileWatc
 		ResourceRequest: resources.ResourceListToStruct(resourceRequest),
 		CustomFlags:     customFlags,
 		RunSlurm:        compute.Environment.RunSlurm,
-    UseTmp:          useTmp,
+		UseTmp:          useTmp,
 	}); err != nil {
 		/*-- since both the template and fields are internal to the code, the evaluation should always succeed	--*/
 		compute.SystemPanic(err, "failed to evaluate sbatch template")

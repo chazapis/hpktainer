@@ -25,10 +25,10 @@ type Image struct {
 	Filepath string
 }
 
-// FakerootExec uses Singularity to instantiate the image and run a command.
-func (p *Image) FakerootExec(singularityArgs []string, cmd []string) (string, error) {
+// FakerootExec uses Apptainer to instantiate the image and run a command.
+func (p *Image) FakerootExec(apptainerArgs []string, cmd []string) (string, error) {
 	execCmd := []string{"exec", "--fakeroot"}
-	execCmd = append(execCmd, singularityArgs...)
+	execCmd = append(execCmd, apptainerArgs...)
 	execCmd = append(execCmd, p.Filepath)
 	execCmd = append(execCmd, cmd...)
 

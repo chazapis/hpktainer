@@ -6,6 +6,7 @@ import (
 	"hpk/internal/compute"
 	"hpk/internal/compute/endpoint"
 	"hpk/internal/compute/image"
+
 	"github.com/pkg/errors"
 )
 
@@ -14,7 +15,7 @@ var (
 	DefaultPauseImage *image.Image
 )
 
-func Initialize() error {
+func Initialize(pauseImage string) error {
 	compute.HPK = endpoint.HPK(compute.Environment.WorkingDirectory)
 
 	// create the ~/.hpk directory, if it does not exist.
@@ -32,7 +33,7 @@ func Initialize() error {
 		return errors.Wrapf(err, "Failed to create CorruptedDir '%s'", compute.HPK.CorruptedDir())
 	}
 
-	img, err := image.Pull(compute.HPK.ImageDir(), image.Docker, image.PauseImage)
+	img, err := image.Pull(compute.HPK.ImageDir(), image.Docker, pauseImage)
 	if err != nil {
 		return errors.Wrapf(err, "failed to get pause container image")
 	}

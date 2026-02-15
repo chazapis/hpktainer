@@ -16,6 +16,7 @@ package compute
 
 import (
 	"hpk/internal/compute/endpoint"
+
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
@@ -36,6 +37,9 @@ type HostEnvironment struct {
 
 	// RunSlurm indicates whether to run jobs under SLURM control or via Apptainer directly.
 	RunSlurm bool
+
+	// PauseImage is the image used for the pause container.
+	PauseImage string
 }
 
 // The VirtualEnvironment create lightweight "virtual environments" that resemble "Pods" semantics.

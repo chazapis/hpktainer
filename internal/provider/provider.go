@@ -63,6 +63,8 @@ type InitConfig struct {
 	RestConfig *rest.Config
 
 	UseTmp bool
+
+	PauseImage string
 }
 
 // VirtualK8S implements the virtual-kubelet provider interface and stores pods in memory.
@@ -95,7 +97,7 @@ func NewVirtualK8S(config InitConfig) (*VirtualK8S, error) {
 	/*---------------------------------------------------
 	 * Initialize HPK Environment
 	 *---------------------------------------------------*/
-	if err := runtime.Initialize(); err != nil {
+	if err := runtime.Initialize(config.PauseImage); err != nil {
 		return nil, errors.Wrapf(err, "Failed to initiaze HPK paths '%s'", compute.HPK.String())
 	}
 

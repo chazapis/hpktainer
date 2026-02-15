@@ -213,15 +213,8 @@ DNS_EOF
 	echo -e "$(hostname -I) $(hostname)" >> /scratch/etc/hosts
 }
 
-# If not removed, Flags will be consumed by the nested Singularity and overwrite paths.
-# https://docs.sylabs.io/guides/3.11/user-guide/environment_and_metadata.html
-function reset_env() {
+func reset_env() {
 	unset LD_LIBRARY_PATH
-
-	unset SINGULARITY_COMMAND
-	unset SINGULARITY_CONTAINER
-	unset SINGULARITY_ENVIRONMENT
-	unset SINGULARITY_NAME
 
 	unset APPTAINER_APPNAME
 	unset APPTAINER_COMMAND
@@ -230,7 +223,6 @@ function reset_env() {
 	unset APPTAINER_NAME
 
 	unset APPTAINER_BIND
-	unset SINGULARITY_BIND
 }
 
 function cleanup() {

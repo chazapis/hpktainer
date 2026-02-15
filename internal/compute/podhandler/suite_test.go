@@ -24,13 +24,13 @@ func setup(tmpDir string) {
 	compute.Environment = compute.HostEnvironment{
 		KubeMasterHost:    "",
 		ContainerRegistry: "",
-		ApptainerBin:      "singularity",
+		ApptainerBin:      "apptainer",
 		EnableCgroupV2:    false,
 		WorkingDirectory:  tmpDir,
 		KubeDNS:           "",
 	}
 
-	if err := runtime.Initialize(); err != nil {
+	if err := runtime.Initialize("docker.io/chazapis/hpk-pause:latest"); err != nil {
 		panic(err)
 	}
 }

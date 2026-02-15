@@ -6,7 +6,7 @@ VERSION ?= $(shell date +%Y%m%d)
 # Binary output directory
 BIN_DIR = bin
 
-.PHONY: all builder binaries images develop clean
+.PHONY: all builder binaries binaries-linux-amd64 binaries-linux-arm64 images develop clean
 
 all: builder images
 
@@ -18,17 +18,19 @@ builder:
 		--push \
 		-f images/hpk-builder/Dockerfile images/hpk-builder
 
-binaries:
-	@echo "Building binaries..."
-	@mkdir -p $(BIN_DIR)/linux/amd64 $(BIN_DIR)/linux/arm64
-	
-	# Linux amd64
+binaries: binaries-linux-amd64 binaries-linux-arm64
+
+binaries-linux-amd64:
+	@echo "Building binaries for linux/amd64..."
+	@mkdir -p $(BIN_DIR)/linux/amd64
 	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpktainer ./cmd/hpktainer
 	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-net-daemon ./cmd/hpk-net-daemon
 	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-kubelet ./cmd/hpk-kubelet
 	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-pause ./cmd/hpk-pause
-	
-	# Linux arm64
+
+binaries-linux-arm64:
+	@echo "Building binaries for linux/arm64..."
+	@mkdir -p $(BIN_DIR)/linux/arm64
 	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpktainer ./cmd/hpktainer
 	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-net-daemon ./cmd/hpk-net-daemon
 	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-kubelet ./cmd/hpk-kubelet
@@ -74,10 +76,10 @@ develop:
 		-t $(REGISTRY)/hpktainer-base:latest \
 		-f images/hpktainer-base/Dockerfile .
 	
-	# Build hpk-bubble
+	# Build hpk-bubble (dev)
 	docker build --build-arg REGISTRY=$(REGISTRY) \
 		-t $(REGISTRY)/hpk-bubble:latest \
-		-f images/hpk-bubble/Dockerfile .
+		-f images/hpk-bubble-dev/Dockerfile .
 	
 	# Build hpk-pause
 	docker build --build-arg REGISTRY=$(REGISTRY) \

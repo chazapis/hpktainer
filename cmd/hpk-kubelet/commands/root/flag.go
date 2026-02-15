@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"hpk/internal/compute"
+
 	"github.com/spf13/pflag"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -67,7 +68,10 @@ type Opts struct {
 	RunSlurm bool
 
 	// Use tmp for the volume directories of the pods
- 	 UseTmp       bool
+	UseTmp bool
+
+	// PauseImage is the image used for the pause container
+	PauseImage string
 }
 
 const (
@@ -107,4 +111,5 @@ func installFlags(flags *pflag.FlagSet, c *Opts) {
 
 	flags.BoolVar(&c.RunSlurm, "run-slurm", true, "run jobs under SLURM or Apptainer")
 	flags.BoolVar(&c.UseTmp, "use-tmp", false, "symlink the pods' volume directories under tmp")
+	flags.StringVar(&c.PauseImage, "pause-image", "docker.io/chazapis/hpk-pause:latest", "image for the pause container")
 }

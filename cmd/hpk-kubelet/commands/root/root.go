@@ -24,6 +24,7 @@ import (
 
 	"hpk/cmd/hpk-kubelet/commands"
 	"hpk/internal/compute"
+
 	"github.com/hashicorp/go-multierror"
 	"github.com/sirupsen/logrus"
 	"github.com/virtual-kubelet/virtual-kubelet/errdefs"
@@ -39,6 +40,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"hpk/internal/provider"
+
 	"github.com/dimiro1/banner"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -143,6 +145,7 @@ func runRootCommand(ctx context.Context, c Opts) error {
 
 		compute.Environment = c.DefaultHostEnvironment
 		compute.Environment.RunSlurm = c.RunSlurm
+		compute.Environment.PauseImage = c.PauseImage
 
 		kubemaster, err := url.Parse(restConfig.Host)
 		if err != nil {
@@ -190,12 +193,13 @@ func runRootCommand(ctx context.Context, c Opts) error {
 		FSPollingInterval: c.FSPollingInterval,
 		RestConfig:        restConfig,
 		UseTmp:            c.UseTmp,
+		PauseImage:        c.PauseImage,
 	})
 	if err != nil {
 		return err
 	}
 
-	AddAdmissionWebhooks(c, virtualk8s)
+	StartAPIServer(c, virtualk8s)
 
 	DefaultLogger.Info("Virtual Node Provisioner is ready",
 		"Address", virtualk8s.InternalIP,

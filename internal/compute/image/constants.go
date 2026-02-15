@@ -14,8 +14,6 @@
 
 package image
 
-import "os"
-
 const Docker = Transport("docker://")
 
 type Transport string
@@ -23,11 +21,3 @@ type Transport string
 func (t Transport) Wrap(imageName string) string {
 	return string(t) + imageName
 }
-
-// const PauseImage = "icsforth/pause:apptainer"
-var PauseImage = func() string {
-	if val := os.Getenv("PAUSE_IMAGE_TAG"); val != "" {
-		return val
-	}
-	return "docker.io/chazapis/hpk-pause:latest"
-}()

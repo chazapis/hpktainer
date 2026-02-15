@@ -20,64 +20,14 @@ import (
 	"net/http"
 
 	"hpk/internal/provider"
+
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	kwhhttp "github.com/slok/kubewebhook/v2/pkg/http"
-	kwhlogrus "github.com/slok/kubewebhook/v2/pkg/log/logrus"
-	kwhmutating "github.com/slok/kubewebhook/v2/pkg/webhook/mutating"
 	"github.com/virtual-kubelet/virtual-kubelet/node/api"
-	corev1 "k8s.io/api/core/v1"
 )
 
-func AddAdmissionWebhooks(c Opts, virtualk8s *provider.VirtualK8S) {
-	logrusLogEntry := logrus.NewEntry(logrus.New())
-	logrusLogEntry.Logger.SetLevel(logrus.DebugLevel)
-	logger := kwhlogrus.NewLogrus(logrusLogEntry)
-
+func StartAPIServer(c Opts, virtualk8s *provider.VirtualK8S) {
 	mux := http.NewServeMux()
-
-	/*---------------------------------------------------
-	 * Mutate CRDs before they arrive to Virtual-Kubelet
-	 *---------------------------------------------------*/
-	{ // Pod Mutator
-		wh, err := kwhmutating.NewWebhook(kwhmutating.WebhookConfig{
-			ID:      "pod-annotate",
-			Obj:     &corev1.Pod{},
-			Mutator: kwhmutating.MutatorFunc(provider.MutatePod),
-			Logger:  logger,
-		})
-		if err != nil {
-			panic(fmt.Errorf("error creating webhook: %w", err))
-		}
-
-		// Get HTTP handler from webhook.
-		podMutator, err := kwhhttp.HandlerFor(kwhhttp.HandlerConfig{Webhook: wh, Logger: logger})
-		if err != nil {
-			panic(fmt.Errorf("error creating webhook handler: %w", err))
-		}
-
-		mux.Handle("/mutates/pod", podMutator)
-	}
-
-	{ // PVC Mutator
-		wh, err := kwhmutating.NewWebhook(kwhmutating.WebhookConfig{
-			ID:      "pvc-annotate",
-			Obj:     &corev1.PersistentVolumeClaim{},
-			Mutator: kwhmutating.MutatorFunc(provider.MutatePVC),
-			Logger:  logger,
-		})
-		if err != nil {
-			panic(fmt.Errorf("error creating webhook: %w", err))
-		}
-
-		// Get HTTP handler from webhook.
-		pvcMutator, err := kwhhttp.HandlerFor(kwhhttp.HandlerConfig{Webhook: wh, Logger: logger})
-		if err != nil {
-			panic(fmt.Errorf("error creating webhook handler: %w", err))
-		}
-
-		mux.Handle("/mutates/pvc", pvcMutator)
-	}
 
 	mux.Handle("/hello", http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		writer.Write([]byte("Hi there! I 'm HPK-Kubelet. My job is to run your Kubernetes stuff on Slurm.\n"))
