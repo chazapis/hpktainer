@@ -20,6 +20,7 @@ import (
 	"runtime"
 
 	"hpk/internal/compute/slurm"
+	"hpk/pkg/version"
 
 	"github.com/matishsiao/goInfo"
 	corev1 "k8s.io/api/core/v1"
@@ -182,7 +183,7 @@ func (v *VirtualK8S) NodeSystemInfo(_ context.Context) corev1.NodeSystemInfo {
 		BootID:                  "",
 		KernelVersion:           kernelVersion,
 		OSImage:                 "hpk",
-		KubeProxyVersion:        "v1.24.7", // fixme: find it automatically
+		KubeProxyVersion:        version.K8sVersion,
 		KubeletVersion:          v.InitConfig.BuildVersion,
 		ContainerRuntimeVersion: "apptainer://1.1.3", // fixme: find it automatically
 		OperatingSystem:         operatingSystem,

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -14,6 +15,7 @@ import (
 	"time"
 
 	"hpk/internal/network"
+	"hpk/pkg/version"
 
 	"github.com/google/uuid"
 	"github.com/vishvananda/netlink"
@@ -27,6 +29,14 @@ const (
 
 func main() {
 	// 1. Check Root
+	versionFlag := flag.Bool("version", false, "Print version and exit")
+	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("hpktainer version: %s (built: %s)\n", version.Version, version.BuildTime)
+		os.Exit(0)
+	}
+
 	currentUser, err := user.Current()
 	if err != nil {
 		log.Fatalf("Failed to get current user: %v", err)

@@ -63,7 +63,7 @@ func NewVersionCommand(version, buildTime string) *cobra.Command {
 		Short: "Show the version of the program",
 		Long:  `Show the version of the program`,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("Version: %s, Built: %s\n", version, buildTime)
+			fmt.Printf("hpk-kubelet version: %s (built: %s)\n", version, buildTime)
 		},
 	}
 }

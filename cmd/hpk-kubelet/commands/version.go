@@ -1,7 +1,9 @@
 package commands
 
+import "hpk/pkg/version"
+
 var (
-	BuildVersion = "N/A"
-	BuildTime    = "N/A"
-	K8sVersion   = "v1.25.0"
+	BuildVersion = version.Version
+	BuildTime    = version.BuildTime
+	K8sVersion   = version.K8sVersion
 )

@@ -34,6 +34,7 @@ import (
 	"hpk/internal/compute/image"
 	"hpk/internal/compute/podhandler"
 	kubecontainer "hpk/pkg/container"
+	"hpk/pkg/version"
 
 	"github.com/rs/zerolog/log"
 	v1 "k8s.io/api/core/v1"
@@ -76,7 +77,13 @@ func main() {
 
 	flag.StringVar(&podID, "pod", "", "Pod ID to query Kubernetes")
 	flag.StringVar(&namespaceID, "namespace", "", "Pod ID to query Kubernetes")
+	versionFlag := flag.Bool("version", false, "Print version and exit")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("hpk-pause version: %s (built: %s)\n", version.Version, version.BuildTime)
+		os.Exit(0)
+	}
 
 	if podID == "" || namespaceID == "" {
 		log.Fatal().Msg("Please provide both the pod and namespace.")

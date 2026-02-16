@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"log"
 	"net"
 	"os"
@@ -10,6 +11,7 @@ import (
 	"time"
 
 	"hpk/internal/netutil"
+	"hpk/pkg/version"
 
 	"github.com/songgao/water"
 	"github.com/vishvananda/netlink"
@@ -20,8 +22,14 @@ func main() {
 	socketPath := flag.String("socket", "", "Path to UNIX socket")
 	tapName := flag.String("tap", "", "Name of TAP interface")
 	createTap := flag.Bool("create-tap", false, "Whether to create the TAP interface (if false, opens existing)")
+	versionFlag := flag.Bool("version", false, "Print version and exit")
 
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Printf("hpk-net-daemon version: %s (built: %s)\n", version.Version, version.BuildTime)
+		os.Exit(0)
+	}
 
 	if *mode == "" || *socketPath == "" || *tapName == "" {
 		flag.Usage()

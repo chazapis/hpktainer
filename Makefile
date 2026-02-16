@@ -1,10 +1,19 @@
 # Makefile for hpktainer project
 
 REGISTRY ?= docker.io/chazapis
-VERSION ?= $(shell date +%Y%m%d)
+VERSION ?= $(shell cat VERSION)
+
+# Extract K8s version from go.mod and map v0.x.y to v1.x.y
+K8S_LIB_VERSION := $(shell go list -m -f '{{.Version}}' k8s.io/api)
+K8S_VERSION := $(subst v0.,v1.,$(K8S_LIB_VERSION))
 
 # Binary output directory
 BIN_DIR = bin
+
+# Inject version and build time
+LDFLAGS := -X 'hpk/pkg/version.Version=$(VERSION)' \
+           -X 'hpk/pkg/version.BuildTime=$(shell date)' \
+           -X 'hpk/pkg/version.K8sVersion=$(K8S_VERSION)'
 
 .PHONY: all builder binaries binaries-linux-amd64 binaries-linux-arm64 images develop clean
 
@@ -23,18 +32,18 @@ binaries: binaries-linux-amd64 binaries-linux-arm64
 binaries-linux-amd64:
 	@echo "Building binaries for linux/amd64..."
 	@mkdir -p $(BIN_DIR)/linux/amd64
-	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpktainer ./cmd/hpktainer
-	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-net-daemon ./cmd/hpk-net-daemon
-	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-kubelet ./cmd/hpk-kubelet
-	GOOS=linux GOARCH=amd64 go build -o $(BIN_DIR)/linux/amd64/hpk-pause ./cmd/hpk-pause
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/amd64/hpktainer ./cmd/hpktainer
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/amd64/hpk-net-daemon ./cmd/hpk-net-daemon
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/amd64/hpk-kubelet ./cmd/hpk-kubelet
+	GOOS=linux GOARCH=amd64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/amd64/hpk-pause ./cmd/hpk-pause
 
 binaries-linux-arm64:
 	@echo "Building binaries for linux/arm64..."
 	@mkdir -p $(BIN_DIR)/linux/arm64
-	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpktainer ./cmd/hpktainer
-	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-net-daemon ./cmd/hpk-net-daemon
-	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-kubelet ./cmd/hpk-kubelet
-	GOOS=linux GOARCH=arm64 go build -o $(BIN_DIR)/linux/arm64/hpk-pause ./cmd/hpk-pause
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/arm64/hpktainer ./cmd/hpktainer
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/arm64/hpk-net-daemon ./cmd/hpk-net-daemon
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/arm64/hpk-kubelet ./cmd/hpk-kubelet
+	GOOS=linux GOARCH=arm64 go build -ldflags "$(LDFLAGS)" -o $(BIN_DIR)/linux/arm64/hpk-pause ./cmd/hpk-pause
 
 images:
 	@echo "Building and pushing images..."
