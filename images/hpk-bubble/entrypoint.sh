@@ -71,6 +71,7 @@ echo "Flannel started with PID $FLANNEL_PID"
 if [ "$HPK_ROLE" = "controller" ]; then
     echo "Starting K3s Server..."
     k3s server \
+      --bind-address ${HOST_IP} \
       --advertise-address ${HOST_IP} \
       --tls-san ${HOST_IP} \
       --disable-agent \

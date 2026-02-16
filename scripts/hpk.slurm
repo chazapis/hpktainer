@@ -33,7 +33,7 @@ echo "Starting Controller on $CONTROLLER_NODE..."
 export HPK_ROLE="controller"
 export CONTROLLER_IP=$CONTROLLER_IP
 export HPK_DEV=${HPK_DEV:-0}
-srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./hpk-bubble.sh 1 &
+srun --nodes=1 -w $CONTROLLER_NODE --exclusive ./scripts/hpk-bubble.sh 1 &
 
 # Wait for Controller initialization
 echo "Waiting for Controller initialization..."
@@ -49,7 +49,7 @@ for ((i=1; i<NUM_NODES; i++)); do
         export HPK_ROLE="node"
         export CONTROLLER_IP=$CONTROLLER_IP
         export HPK_DEV=${HPK_DEV:-0}
-        srun --nodes=1 -w $NODE --exclusive ./hpk-bubble.sh $BUBBLE_ID
+        srun --nodes=1 -w $NODE --exclusive ./scripts/hpk-bubble.sh $BUBBLE_ID
     ) &
     
     ((BUBBLE_ID++))

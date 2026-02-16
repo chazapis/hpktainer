@@ -97,25 +97,55 @@ develop:
 	
 	@echo "Exporting images to tar files..."
 	@mkdir -p /tmp/hpk-images
+	# Clean up old tars first
+	rm -f /tmp/hpk-images/*.tar
 	docker save -o /tmp/hpk-images/hpk-bubble.tar $(REGISTRY)/hpk-bubble:latest
 	docker save -o /tmp/hpk-images/hpk-pause.tar $(REGISTRY)/hpk-pause:latest
-	
-	@echo "Copying images to VMs..."
-	# Using sshpass if available to automate password entry
-	$(eval SSHPASS := sshpass -p vagrant)
-	@command -v sshpass >/dev/null 2>&1 || { echo "Error: sshpass is required for automated password entry. Install it or run commands manually."; exit 1; }
-	
-	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
-	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@node.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
-	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@controller.local:~/.hpk/images/
-	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@node.local:~/.hpk/images/
-	
-	@echo "Copying scripts to controller..."
-	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/hpk"
-	$(SSHPASS) scp -r -o StrictHostKeyChecking=no scripts/* vagrant@controller.local:~/hpk/
+
+	@echo "Moving images to local storage..."
+	mkdir -p ~/.hpk/images
+	# Clean up BOTH .sif and .tar before moving
+	rm -f ~/.hpk/images/*.sif ~/.hpk/images/*.tar
+
+	# Use MOVE instead of CP to avoid double-usage
+	mv /tmp/hpk-images/*.tar ~/.hpk/images/
+
+	# Aggressively clean up Docker's build leftovers
+	docker image prune -f
+
+	# Run these commands with sudo to work
+	systemctl stop containerd
+	rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/*
+	rm -rf /var/lib/containerd/io.containerd.content.v1.content/*
+	systemctl start containerd
+	fstrim -av
+
+# 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
+# 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@node.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
+# 	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@controller.local:~/.hpk/images/
+# 	$(SSHPASS) scp -o StrictHostKeyChecking=no /tmp/hpk-images/*.tar vagrant@node.local:~/.hpk/images/
+
+# 	@echo "Copying scripts to controller..."
+# 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/hpk"
+# 	$(SSHPASS) scp -r -o StrictHostKeyChecking=no scripts/* vagrant@controller.local:~/hpk/
 	
 	@echo "Development images deployed successfully!"
 	@echo "Set HPK_DEV=1 in hpk.slurm to use local images."
 
+make bubble:
+	# Build hpk-bubble (dev)
+	docker build --build-arg REGISTRY=$(REGISTRY) \
+		-t $(REGISTRY)/hpk-bubble:latest \
+		-f images/hpk-bubble-dev/Dockerfile .
+
+	rm -f /tmp/hpk-images/hpk-bubble.tar
+	
+	docker save -o /tmp/hpk-images/hpk-bubble.tar $(REGISTRY)/hpk-bubble:latest
+
+	rm -f ~/.hpk/images/hpk-bubble.sif ~/.hpk/images/hpk-bubble.tar
+
+	mv /tmp/hpk-images/hpk-bubble.tar ~/.hpk/images/
+
+	docker image prune -f
 clean:
 	rm -rf $(BIN_DIR)

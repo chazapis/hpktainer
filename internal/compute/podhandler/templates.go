@@ -454,7 +454,7 @@ exec {{$.HostEnv.ApptainerBin}} exec --nv --containall --net --fakeroot --scratc
 --apply-cgroups {{.VirtualEnv.CgroupFilePath}} 		\
 {{- end}}
 --env PARENT=${PPID}								\
---bind $HOME/.hpk-master/kubernetes:/k8s-data			\
+--bind /var/lib/hpk:/k8s-data			\
 --bind /etc/apptainer/apptainer.conf				\
 --bind $HOME,/tmp									\
 --hostname {{truncate .Pod.Name 63}}							\
