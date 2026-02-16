@@ -34,6 +34,7 @@ import (
 	"hpk/internal/compute/image"
 	"hpk/internal/compute/podhandler"
 	kubecontainer "hpk/pkg/container"
+
 	"github.com/rs/zerolog/log"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -231,13 +232,13 @@ func cleanEnvironment() error {
 		"SINGULARITY_CONTAINER",
 		"SINGULARITY_ENVIRONMENT",
 		"SINGULARITY_NAME",
+		"SINGULARITY_BIND",
 		"APPTAINER_APPNAME",
 		"APPTAINER_COMMAND",
 		"APPTAINER_CONTAINER",
 		"APPTAINER_ENVIRONMENT",
 		"APPTAINER_NAME",
 		"APPTAINER_BIND",
-		"SINGULARITY_BIND",
 	}
 
 	for _, name := range envVars {

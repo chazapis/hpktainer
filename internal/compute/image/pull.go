@@ -35,7 +35,7 @@ func Pull(imageDir string, transport Transport, imageName string) (*Image, error
 		}, nil
 	}
 
-	// Remove the digest form the image, because Singularity fails with
+	// Remove the digest form the image, because Apptainer fails with
 	// "Docker references with both a tag and digest are currently not supported".
 	imageName = strings.Split(imageName, "@")[0]
 
