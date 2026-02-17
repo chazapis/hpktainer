@@ -73,52 +73,36 @@ images:
 		-f images/hpk-pause/Dockerfile .
 
 develop:
-	@echo "Building images for local development..."
-	
-	# Build hpk-builder
-	docker build --build-arg REGISTRY=$(REGISTRY) \
-		-t $(REGISTRY)/hpk-builder:latest \
-		-f images/hpk-builder/Dockerfile images/hpk-builder
-	
-	# Build hpktainer-base
-	docker build --build-arg REGISTRY=$(REGISTRY) \
-		-t $(REGISTRY)/hpktainer-base:latest \
-		-f images/hpktainer-base/Dockerfile .
-	
-	# Build hpk-bubble (dev)
-	docker build --build-arg REGISTRY=$(REGISTRY) \
-		-t $(REGISTRY)/hpk-bubble:latest \
-		-f images/hpk-bubble-dev/Dockerfile .
-	
-	# Build hpk-pause
-	docker build --build-arg REGISTRY=$(REGISTRY) \
-		-t $(REGISTRY)/hpk-pause:latest \
-		-f images/hpk-pause/Dockerfile .
-	
-	@echo "Exporting images to tar files..."
+	@echo "Pre-build cleanup..."
+	# Only clean containerd once at the start if you suspect ghost layers
+	-sudo systemctl stop containerd && sudo rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/* && sudo systemctl start containerd
+
+	@echo "Building images..."
+	docker build -t $(REGISTRY)/hpk-builder:latest -f images/hpk-builder/Dockerfile images/hpk-builder
+	docker build -t $(REGISTRY)/hpktainer-base:latest -f images/hpktainer-base/Dockerfile .
+	docker build -t $(REGISTRY)/hpk-bubble:latest -f images/hpk-bubble-dev/Dockerfile .
+	docker build -t $(REGISTRY)/hpk-pause:latest -f images/hpk-pause/Dockerfile .
+
+	@echo "Exporting..."
 	@mkdir -p /tmp/hpk-images
-	# Clean up old tars first
 	rm -f /tmp/hpk-images/*.tar
 	docker save -o /tmp/hpk-images/hpk-bubble.tar $(REGISTRY)/hpk-bubble:latest
 	docker save -o /tmp/hpk-images/hpk-pause.tar $(REGISTRY)/hpk-pause:latest
 
-	@echo "Moving images to local storage..."
+	@echo "Moving to local storage..."
 	mkdir -p ~/.hpk/images
-	# Clean up BOTH .sif and .tar before moving
 	rm -f ~/.hpk/images/*.sif ~/.hpk/images/*.tar
-
-	# Use MOVE instead of CP to avoid double-usage
 	mv /tmp/hpk-images/*.tar ~/.hpk/images/
 
-	# Aggressively clean up Docker's build leftovers
-	docker image prune -f
-
-	# Run these commands with sudo to work
-	systemctl stop containerd
-	rm -rf /var/lib/containerd/io.containerd.snapshotter.v1.overlayfs/*
-	rm -rf /var/lib/containerd/io.containerd.content.v1.content/*
-	systemctl start containerd
-	fstrim -av
+	@echo "The Big Cleanup..."
+	# 1. Kill the Build Cache (This is the 5GB culprit)
+# 	docker builder prune -af
+	# 2. Kill unused images
+# 	docker image prune -af
+	# 3. Kill Apptainer's internal cache (The 6.1GB you found earlier)
+# 	apptainer cache clean --type=blob -f
+	# 4. Final SSD Reclaim
+	sudo fstrim -av
 
 # 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
 # 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@node.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"

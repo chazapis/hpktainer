@@ -294,6 +294,42 @@ func main() {
 		log.Fatalf("Failed to start apptainer: %v", err)
 	}
 
+	// Get apptainer PID
+	apptainerPID := runCmd.Process.Pid
+	log.Printf("Started apptainer process with PID: %d", apptainerPID)
+
+	// Find hpk-pause process (child of apptainer)
+	log.Println("Waiting for hpk-pause process to start...")
+	var hpkPausePID int
+	for i := 0; i < 30; i++ { // 3 seconds timeout
+		hpkPausePID = findChildProcessByName(apptainerPID, "hpk-pause")
+		if hpkPausePID > 0 {
+			log.Printf("Found hpk-pause process with PID: %d", hpkPausePID)
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	if hpkPausePID > 0 {
+		// Parse namespace and pod information from hpk-pause process
+		namespace, pod, err := getProcessInfo(hpkPausePID)
+		if err != nil {
+			log.Printf("Warning: Could not parse namespace/pod from hpk-pause: %v", err)
+		} else {
+			log.Printf("Namespace: %s, Pod: %s", namespace, pod)
+
+			// Run entrypoint.sh script inside the container's namespace
+			log.Println("Running entrypoint.sh inside container namespace...")
+			if err := runEntrypointInNamespace(hpkPausePID, containerIP, gwIP, socketPath); err != nil {
+				log.Printf("Warning: Failed to run entrypoint script: %v", err)
+			} else {
+				log.Println("Entrypoint script completed successfully")
+			}
+		}
+	} else {
+		log.Printf("Warning: hpk-pause process not found after timeout")
+	}
+
 	// Wait for process in another goroutine or select
 	done := make(chan error, 1)
 	go func() {
@@ -319,4 +355,125 @@ func main() {
 	}
 
 	// Cleanup happens via defers (daemon kill, release IP, del tap)
+}
+
+// findChildProcessByName recursively searches for a descendant process by name
+func findChildProcessByName(parentPID int, processName string) int {
+	return findProcessRecursive(parentPID, processName)
+}
+
+// findProcessRecursive recursively searches process tree for a process by name
+func findProcessRecursive(parentPID int, processName string) int {
+	childrenFile := fmt.Sprintf("/proc/%d/task/%d/children", parentPID, parentPID)
+	data, err := os.ReadFile(childrenFile)
+	if err != nil {
+		return 0
+	}
+
+	pidStrings := strings.Fields(string(data))
+	for _, pidStr := range pidStrings {
+		var pid int
+		fmt.Sscanf(pidStr, "%d", &pid)
+		if pid > 0 {
+			commFile := fmt.Sprintf("/proc/%d/comm", pid)
+			commData, err := os.ReadFile(commFile)
+			if err != nil {
+				continue
+			}
+			if strings.TrimSpace(string(commData)) == processName {
+				return pid
+			}
+			
+			// Recursively search children of this process
+			if found := findProcessRecursive(pid, processName); found > 0 {
+				return found
+			}
+		}
+	}
+	return 0
+}
+
+// getProcessInfo extracts namespace and pod information from the process cmdline
+func getProcessInfo(pid int) (string, string, error) {
+	cmdlineFile := fmt.Sprintf("/proc/%d/cmdline", pid)
+	data, err := os.ReadFile(cmdlineFile)
+	if err != nil {
+		return "", "", err
+	}
+
+	// cmdline is null-separated
+	args := strings.Split(string(data), "\x00")
+	namespace := ""
+	pod := ""
+
+	for i, arg := range args {
+		if arg == "-namespace" && i+1 < len(args) {
+			namespace = args[i+1]
+		}
+		if arg == "-pod" && i+1 < len(args) {
+			pod = args[i+1]
+		}
+	}
+
+	if namespace == "" || pod == "" {
+		return "", "", fmt.Errorf("namespace or pod not found in cmdline")
+	}
+
+	return namespace, pod, nil
+}
+
+// Static entrypoint script - embedded in binary
+const entrypointScript = `#!/bin/sh
+set -e
+
+if [ -z "$HPK_IP" ] || [ -z "$HPK_GATEWAY_IP" ] || [ -z "$HPK_SOCKET_PATH" ]; then
+    echo "Error: HPK environment variables missing."
+    echo "HPK_IP=$HPK_IP"
+    echo "HPK_GATEWAY_IP=$HPK_GATEWAY_IP"
+    echo "HPK_SOCKET_PATH=$HPK_SOCKET_PATH"
+    exit 1
+fi
+
+echo "Starting hpk-net-daemon..."
+hpk-net-daemon -mode client -socket "$HPK_SOCKET_PATH" -tap tap0 -create-tap &
+DAEMON_PID=$!
+
+TRIES=0
+while ! ip link show tap0 >/dev/null 2>&1; do
+    sleep 0.1
+    TRIES=$((TRIES+1))
+    if [ $TRIES -gt 50 ]; then
+        echo "Timeout waiting for tap0 creation"
+        exit 1
+    fi
+done
+
+echo "Configuring network..."
+ip addr add "$HPK_IP" dev tap0
+ip link set tap0 up
+ip route add default via "$HPK_GATEWAY_IP"
+
+echo "Network ready. Executing command: $@"
+exec "$@"
+`
+
+// runEntrypointInNamespace executes the entrypoint script inside the container's namespace
+func runEntrypointInNamespace(targetPID int, containerIP, gwIP, socketPath string) error {
+	// Prepare the environment for the entrypoint script
+	env := []string{
+		fmt.Sprintf("HPK_IP=%s", containerIP),
+		fmt.Sprintf("HPK_GATEWAY_IP=%s", gwIP),
+		fmt.Sprintf("HPK_SOCKET_PATH=%s", socketPath),
+		"PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+	}
+
+	// Use nsenter to run the entrypoint script in the container's namespace
+	// Pipe the script to bash via stdin
+	cmd := exec.Command("nsenter", "-t", fmt.Sprintf("%d", targetPID), "-n", "--", "bash")
+	cmd.Stdin = strings.NewReader(entrypointScript)
+	cmd.Env = env
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	return cmd.Run()
 }
