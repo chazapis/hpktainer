@@ -95,13 +95,9 @@ develop:
 	mv /tmp/hpk-images/*.tar ~/.hpk/images/
 
 	@echo "The Big Cleanup..."
-	# 1. Kill the Build Cache (This is the 5GB culprit)
 # 	docker builder prune -af
-	# 2. Kill unused images
 # 	docker image prune -af
-	# 3. Kill Apptainer's internal cache (The 6.1GB you found earlier)
 # 	apptainer cache clean --type=blob -f
-	# 4. Final SSD Reclaim
 	sudo fstrim -av
 
 # 	$(SSHPASS) ssh -o StrictHostKeyChecking=no vagrant@controller.local "mkdir -p ~/.hpk/images && rm -f ~/.hpk/images/*.sif"
