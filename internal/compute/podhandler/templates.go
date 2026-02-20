@@ -449,7 +449,7 @@ echo $$ > "${workdir}/.pid"
 
 export APPTAINERENV_KUBEDNS_IP={{.HostEnv.KubeDNS}}
 
-exec {{$.HostEnv.ApptainerBin}} exec --nv --containall --net --fakeroot --scratch /scratch --workdir ${workdir} \
+exec {{$.HostEnv.ApptainerBin}} run --nv --net --scratch /scratch --workdir ${workdir} \
 {{- if .HostEnv.EnableCgroupV2}}
 --apply-cgroups {{.VirtualEnv.CgroupFilePath}} 		\
 {{- end}}

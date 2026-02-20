@@ -294,41 +294,42 @@ func main() {
 		log.Fatalf("Failed to start apptainer: %v", err)
 	}
 
-	// Get apptainer PID
-	apptainerPID := runCmd.Process.Pid
-	log.Printf("Started apptainer process with PID: %d", apptainerPID)
+	// Commenting this as another way to execute the networking from inside the container.
+	// // Get apptainer PID
+	// apptainerPID := runCmd.Process.Pid
+	// log.Printf("Started apptainer process with PID: %d", apptainerPID)
 
-	// Find hpk-pause process (child of apptainer)
-	log.Println("Waiting for hpk-pause process to start...")
-	var hpkPausePID int
-	for i := 0; i < 30; i++ { // 3 seconds timeout
-		hpkPausePID = findChildProcessByName(apptainerPID, "hpk-pause")
-		if hpkPausePID > 0 {
-			log.Printf("Found hpk-pause process with PID: %d", hpkPausePID)
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
+	// // Find hpk-pause process (child of apptainer)
+	// log.Println("Waiting for hpk-pause process to start...")
+	// var hpkPausePID int
+	// for i := 0; i < 30; i++ { // 3 seconds timeout
+	// 	hpkPausePID = findChildProcessByName(apptainerPID, "hpk-pause")
+	// 	if hpkPausePID > 0 {
+	// 		log.Printf("Found hpk-pause process with PID: %d", hpkPausePID)
+	// 		break
+	// 	}
+	// 	time.Sleep(100 * time.Millisecond)
+	// }
 
-	if hpkPausePID > 0 {
-		// Parse namespace and pod information from hpk-pause process
-		namespace, pod, err := getProcessInfo(hpkPausePID)
-		if err != nil {
-			log.Printf("Warning: Could not parse namespace/pod from hpk-pause: %v", err)
-		} else {
-			log.Printf("Namespace: %s, Pod: %s", namespace, pod)
+	// if hpkPausePID > 0 {
+	// 	// Parse namespace and pod information from hpk-pause process
+	// 	namespace, pod, err := getProcessInfo(hpkPausePID)
+	// 	if err != nil {
+	// 		log.Printf("Warning: Could not parse namespace/pod from hpk-pause: %v", err)
+	// 	} else {
+	// 		log.Printf("Namespace: %s, Pod: %s", namespace, pod)
 
-			// Run entrypoint.sh script inside the container's namespace
-			log.Println("Running entrypoint.sh inside container namespace...")
-			if err := runEntrypointInNamespace(hpkPausePID, containerIP, gwIP, socketPath); err != nil {
-				log.Printf("Warning: Failed to run entrypoint script: %v", err)
-			} else {
-				log.Println("Entrypoint script completed successfully")
-			}
-		}
-	} else {
-		log.Printf("Warning: hpk-pause process not found after timeout")
-	}
+	// 		// Run entrypoint.sh script inside the container's namespace
+	// 		log.Println("Running entrypoint.sh inside container namespace...")
+	// 		if err := runEntrypointInNamespace(hpkPausePID, containerIP, gwIP, socketPath); err != nil {
+	// 			log.Printf("Warning: Failed to run entrypoint script: %v", err)
+	// 		} else {
+	// 			log.Println("Entrypoint script completed successfully")
+	// 		}
+	// 	}
+	// } else {
+	// 	log.Printf("Warning: hpk-pause process not found after timeout")
+	// }
 
 	// Wait for process in another goroutine or select
 	done := make(chan error, 1)
